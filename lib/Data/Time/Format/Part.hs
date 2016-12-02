@@ -66,94 +66,6 @@ data Part a
 
 mkParts :: TimeLocale -> String -> [Part a]
 mkParts l ('%':p:xs) = case p of
-    '-' -> case xs of
-        (y:ys)
-            | y == 'H' || y == 'k' -> Hour NP : next'
-            | y == 'I' || y == 'l' -> HourHalf NP : next'
-            | y == 'M' -> Minute NP : next'
-            | y == 'S' -> Second NP : next'
-            | y == 'Y' -> Year4 NP : next'
-            | y == 'y' -> Year2 NP : next'
-            | y == 'm' -> Month NP : next'
-            | y == 'd' || y == 'e' -> DayOfMonth NP : next'
-            | y == 'j' -> DayOfYear NP : next'
-            | y == 'G' -> WDYear4 NP : next'
-            | y == 'g' -> WDYear2 NP : next'
-            | y == 'f' -> WDCentury NP : next'
-            | y == 'V' -> WDWeekOfYear NP : next'
-            | y == 'U' -> WeekOfYear' NP : next'
-            | y == 'W' -> WeekOfYear NP : next'
-            | otherwise -> next
-          where next' = mkParts l ys
-        _ -> next
-
-    '_' -> case xs of
-        (y:ys)
-            | y == 'H' || y == 'k' -> Hour SP : next'
-            | y == 'I' || y == 'l' -> HourHalf SP : next'
-            | y == 'M' -> Minute SP : next'
-            | y == 'S' -> Second SP : next'
-            | y == 'Y' -> Year4 SP : next'
-            | y == 'y' -> Year2 SP : next'
-            | y == 'm' -> Month SP : next'
-            | y == 'd' || y == 'e' -> DayOfMonth SP : next'
-            | y == 'j' -> DayOfYear SP : next'
-            | y == 'G' -> WDYear4 SP : next'
-            | y == 'g' -> WDYear2 SP : next'
-            | y == 'f' -> WDCentury SP : next'
-            | y == 'V' -> WDWeekOfYear SP : next'
-            | y == 'U' -> WeekOfYear' SP : next'
-            | y == 'W' -> WeekOfYear SP : next'
-            | otherwise -> next
-          where next' = mkParts l ys
-        _ -> next
-
-    '0' -> case xs of
-        (y:ys)
-            | y == 'H' || y == 'k' -> Hour ZP : next'
-            | y == 'I' || y == 'l' -> HourHalf ZP : next'
-            | y == 'M' -> Minute ZP : next'
-            | y == 'S' -> Second ZP : next'
-            | y == 'Y' -> Year4 ZP : next'
-            | y == 'y' -> Year2 ZP : next'
-            | y == 'm' -> Month ZP : next'
-            | y == 'd' || y == 'e' -> DayOfMonth ZP : next'
-            | y == 'j' -> DayOfYear ZP : next'
-            | y == 'G' -> WDYear4 ZP : next'
-            | y == 'g' -> WDYear2 ZP : next'
-            | y == 'f' -> WDCentury ZP : next'
-            | y == 'V' -> WDWeekOfYear ZP : next'
-            | y == 'U' -> WeekOfYear' ZP : next'
-            | y == 'W' -> WeekOfYear ZP : next'
-            | otherwise -> next
-          where next' = mkParts l ys
-        _ -> next
-
-    '^' -> case xs of
-        (y:ys)
-            | y == 'P' -> DayHalf Upper : next'
-            | y == 'b' || y == 'h' -> MonthAbbr Upper : next'
-            | y == 'B' -> MonthFull Upper : next'
-            | y == 'a' -> WeekDayAbbr Upper : next'
-            | y == 'A' -> WeekDayFull Upper : next'
-            | otherwise -> next
-          where next' = mkParts l ys
-        _ -> next
-
-    '#' -> case xs of
-        (y:ys)
-            | y == 'P' -> DayHalf Lower : next'
-            | y == 'b' || y == 'h' -> MonthAbbr Lower : next'
-            | y == 'B' -> MonthFull Lower : next'
-            | y == 'a' -> WeekDayAbbr Lower : next'
-            | y == 'A' -> WeekDayFull Lower : next'
-            | otherwise -> next
-          where next' = mkParts l ys
-        _ -> next
-
-    '%' -> Char '%'  : next
-    't' -> Char '\t' : next
-    'n' -> Char '\n' : next
     'z' -> TZ : next
     'Z' -> TZName Upper : next
     'c' -> mkParts l (dateTimeFmt l) ++ next
@@ -195,6 +107,89 @@ mkParts l ('%':p:xs) = case p of
     'U' -> WeekOfYear' ZP : next
     'W' -> WeekOfYear ZP : next
     'w' -> DayOfWeek : next
+    '%' -> Char '%'  : next
+    't' -> Char '\t' : next
+    'n' -> Char '\n' : next
+    '-' -> case xs of
+        (y:ys)
+            | y == 'H' || y == 'k' -> Hour NP : next'
+            | y == 'I' || y == 'l' -> HourHalf NP : next'
+            | y == 'M' -> Minute NP : next'
+            | y == 'S' -> Second NP : next'
+            | y == 'Y' -> Year4 NP : next'
+            | y == 'y' -> Year2 NP : next'
+            | y == 'm' -> Month NP : next'
+            | y == 'd' || y == 'e' -> DayOfMonth NP : next'
+            | y == 'j' -> DayOfYear NP : next'
+            | y == 'G' -> WDYear4 NP : next'
+            | y == 'g' -> WDYear2 NP : next'
+            | y == 'f' -> WDCentury NP : next'
+            | y == 'V' -> WDWeekOfYear NP : next'
+            | y == 'U' -> WeekOfYear' NP : next'
+            | y == 'W' -> WeekOfYear NP : next'
+            | otherwise -> next
+          where next' = mkParts l ys
+        _ -> next
+    '_' -> case xs of
+        (y:ys)
+            | y == 'H' || y == 'k' -> Hour SP : next'
+            | y == 'I' || y == 'l' -> HourHalf SP : next'
+            | y == 'M' -> Minute SP : next'
+            | y == 'S' -> Second SP : next'
+            | y == 'Y' -> Year4 SP : next'
+            | y == 'y' -> Year2 SP : next'
+            | y == 'm' -> Month SP : next'
+            | y == 'd' || y == 'e' -> DayOfMonth SP : next'
+            | y == 'j' -> DayOfYear SP : next'
+            | y == 'G' -> WDYear4 SP : next'
+            | y == 'g' -> WDYear2 SP : next'
+            | y == 'f' -> WDCentury SP : next'
+            | y == 'V' -> WDWeekOfYear SP : next'
+            | y == 'U' -> WeekOfYear' SP : next'
+            | y == 'W' -> WeekOfYear SP : next'
+            | otherwise -> next
+          where next' = mkParts l ys
+        _ -> next
+    '0' -> case xs of
+        (y:ys)
+            | y == 'H' || y == 'k' -> Hour ZP : next'
+            | y == 'I' || y == 'l' -> HourHalf ZP : next'
+            | y == 'M' -> Minute ZP : next'
+            | y == 'S' -> Second ZP : next'
+            | y == 'Y' -> Year4 ZP : next'
+            | y == 'y' -> Year2 ZP : next'
+            | y == 'm' -> Month ZP : next'
+            | y == 'd' || y == 'e' -> DayOfMonth ZP : next'
+            | y == 'j' -> DayOfYear ZP : next'
+            | y == 'G' -> WDYear4 ZP : next'
+            | y == 'g' -> WDYear2 ZP : next'
+            | y == 'f' -> WDCentury ZP : next'
+            | y == 'V' -> WDWeekOfYear ZP : next'
+            | y == 'U' -> WeekOfYear' ZP : next'
+            | y == 'W' -> WeekOfYear ZP : next'
+            | otherwise -> next
+          where next' = mkParts l ys
+        _ -> next
+    '^' -> case xs of
+        (y:ys)
+            | y == 'P' -> DayHalf Upper : next'
+            | y == 'b' || y == 'h' -> MonthAbbr Upper : next'
+            | y == 'B' -> MonthFull Upper : next'
+            | y == 'a' -> WeekDayAbbr Upper : next'
+            | y == 'A' -> WeekDayFull Upper : next'
+            | otherwise -> next
+          where next' = mkParts l ys
+        _ -> next
+    '#' -> case xs of
+        (y:ys)
+            | y == 'P' -> DayHalf Lower : next'
+            | y == 'b' || y == 'h' -> MonthAbbr Lower : next'
+            | y == 'B' -> MonthFull Lower : next'
+            | y == 'a' -> WeekDayAbbr Lower : next'
+            | y == 'A' -> WeekDayFull Lower : next'
+            | otherwise -> next
+          where next' = mkParts l ys
+        _ -> next
     _   -> next
   where
     next = mkParts l xs
@@ -216,7 +211,7 @@ formatParts l parts t = foldr go "" (formatPart l t parts)
   where
     go (Part f) acc = f ++ acc
     go (Char c) acc = c:acc
-    go _         acc = acc
+    go _        acc = acc
 
 instance FormatTime LocalTime String where
     formatPart l (LocalTime day tod) =

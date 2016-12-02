@@ -21,7 +21,7 @@ executable time-bench
         if impl(hugs)
             default-extensions: Rank2Types
             cpp-options: -DLANGUAGE_Rank2Types
-    ghc-options: -Wall -fwarn-tabs -O1
+    ghc-options: -Wall -fwarn-tabs -O2
     build-depends:
         base >= 4.7 && < 5,
         deepseq >= 1.1,
@@ -39,3 +39,33 @@ executable time-bench
         install-includes:
             HsTime.h
             HsTimeConfig.h
+
+    other-modules:
+        Data.Time.Calendar,
+        Data.Time.Calendar.MonthDay,
+        Data.Time.Calendar.OrdinalDate,
+        Data.Time.Calendar.WeekDate,
+        Data.Time.Calendar.Julian,
+        Data.Time.Calendar.Easter,
+        Data.Time.Clock,
+        Data.Time.Clock.POSIX,
+        Data.Time.Clock.TAI,
+        Data.Time.LocalTime,
+        Data.Time.Format,
+        Data.Time.Format.Part,
+        Data.Time
+        Data.Time.Calendar.Private,
+        Data.Time.Calendar.Days,
+        Data.Time.Calendar.Gregorian,
+        Data.Time.Calendar.JulianYearDay,
+        Data.Time.Clock.Scale,
+        Data.Time.Clock.UTC,
+        Data.Time.Clock.CTimeval,
+        Data.Time.Clock.CTimespec,
+        Data.Time.Clock.UTCDiff,
+        Data.Time.LocalTime.TimeZone,
+        Data.Time.LocalTime.TimeOfDay,
+        Data.Time.LocalTime.LocalTime,
+        Data.Time.Format.Parse
+        Data.Time.Format.Locale
+        Data.Time.Format.Part

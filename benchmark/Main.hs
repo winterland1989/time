@@ -31,15 +31,17 @@ main = do
     oct <- O.getCurrentTime
 
     zt <- getZonedTime
-    let parts = mkParts defaultTimeLocale "%H:%M:%S%Q"
+    let parts = mkParts defaultTimeLocale rfc822DateFormat
         lt = zonedTimeToLocalTime zt
         tod = localTimeOfDay lt
 
+    print $ (formatParts defaultTimeLocale parts) lt
     print $ (formatParts defaultTimeLocale parts) tod
     defaultMain
         [ bgroup "new"
             [ bench "getCurrentTime" $ nfIO getCurrentTime
-            , bench "formatParts" $ nf (formatParts defaultTimeLocale parts) tod
+            , bench "formatParts@LocalTime" $ nf (formatParts defaultTimeLocale parts) lt
+            , bench "formatParts@TimeOfDay" $ nf (formatParts defaultTimeLocale parts) tod
             , bench "getPOSIXTime" $ nfIO getPOSIXTime
             , bench "getZonedTime" $ nfIO getZonedTime
             ]

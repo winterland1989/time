@@ -7,7 +7,12 @@ module Data.Time.Format.Part where
 import Data.Time.LocalTime
 import Data.Time.Format.Locale
 import Data.Int
+import Data.Char (toLower, toUpper)
 import Data.Fixed
+import Data.Time.Calendar
+import Data.Time.Calendar.WeekDate (toWeekDate)
+import Data.Time.Calendar.OrdinalDate (toOrdinalDate, mondayStartWeek, sundayStartWeek)
+import Debug.Trace (trace)
 
 -- | The @no padding@, @space padded@ and @zero padded@ modifier.
 --
@@ -15,7 +20,7 @@ data PaddingModifier = NP | SP | ZP deriving (Show, Eq, Ord)
 
 -- | The @lowercase@, @no case conversion@ and @uppercase@ modifier.
 --
-data CaseModifier = Lower | NoModify | Upper deriving (Show, Eq, Ord)
+data CaseModifier = Lower | NoMod | Upper deriving (Show, Eq, Ord)
 
 -- | All the various formatter that can be part of a time format string.
 -- <http://www.opengroup.org/onlinepubs/007908799/xsh/strftime.html>
@@ -33,14 +38,14 @@ data Part a
     | WeekOfYear' PaddingModifier  -- ^ 'sundayStartWeek' of year (0 - 53), padded to 2 chars
     | WDWeekOfYear PaddingModifier -- ^ week of year for Week Date format, padded to 2 chars.
     | Month PaddingModifier        -- ^ month of year (1 - 12).
-    | MonthShort CaseModifier      -- ^ name of the month short ('snd' from 'months' locale, Jan - Dec).
-    | MonthLong CaseModifier       -- ^ name of the month long ('snd' from 'months' locale, January - December).
+    | MonthAbbr CaseModifier      -- ^ name of the month short ('snd' from 'months' locale, Jan - Dec).
+    | MonthFull CaseModifier       -- ^ name of the month long ('snd' from 'months' locale, January - December).
     | DayOfMonth PaddingModifier
     | DayOfYear PaddingModifier
     | DayOfWeek
     | WDDayOfWeek
-    | WeekDayShort CaseModifier
-    | WeekDayLong CaseModifier
+    | WeekDayAbbr CaseModifier
+    | WeekDayFull CaseModifier
     | DayHalf CaseModifier
     | Hour PaddingModifier
     | HourHalf PaddingModifier
@@ -127,10 +132,10 @@ mkParts l ('%':p:xs) = case p of
     '^' -> case xs of
         (y:ys)
             | y == 'P' -> DayHalf Upper : next'
-            | y == 'b' || y == 'h' -> MonthShort Upper : next'
-            | y == 'B' -> MonthLong Upper : next'
-            | y == 'a' -> WeekDayShort Upper : next'
-            | y == 'A' -> WeekDayLong Upper : next'
+            | y == 'b' || y == 'h' -> MonthAbbr Upper : next'
+            | y == 'B' -> MonthFull Upper : next'
+            | y == 'a' -> WeekDayAbbr Upper : next'
+            | y == 'A' -> WeekDayFull Upper : next'
             | otherwise -> next
           where next' = mkParts l ys
         _ -> next
@@ -138,10 +143,10 @@ mkParts l ('%':p:xs) = case p of
     '#' -> case xs of
         (y:ys)
             | y == 'P' -> DayHalf Lower : next'
-            | y == 'b' || y == 'h' -> MonthShort Lower : next'
-            | y == 'B' -> MonthLong Lower : next'
-            | y == 'a' -> WeekDayShort Lower : next'
-            | y == 'A' -> WeekDayLong Lower : next'
+            | y == 'b' || y == 'h' -> MonthAbbr Lower : next'
+            | y == 'B' -> MonthFull Lower : next'
+            | y == 'a' -> WeekDayAbbr Lower : next'
+            | y == 'A' -> WeekDayFull Lower : next'
             | otherwise -> next
           where next' = mkParts l ys
         _ -> next
@@ -173,9 +178,9 @@ mkParts l ('%':p:xs) = case p of
     'Y' -> Year4 NP : next
     'y' -> Year2 ZP : next
     'C' -> Century NP : next
-    'B' -> MonthLong NoModify: next
-    'b' -> MonthShort NoModify: next
-    'h' -> MonthShort NoModify: next
+    'B' -> MonthFull NoMod: next
+    'b' -> MonthAbbr NoMod: next
+    'h' -> MonthAbbr NoMod: next
     'm' -> Month ZP : next
     'd' -> DayOfMonth ZP : next
     'e' -> DayOfMonth SP : next
@@ -185,8 +190,8 @@ mkParts l ('%':p:xs) = case p of
     'f' -> WDCentury ZP : next
     'V' -> WDWeekOfYear ZP : next
     'u' -> WDDayOfWeek : next
-    'a' -> WeekDayShort NoModify : next
-    'A' -> WeekDayLong NoModify : next
+    'a' -> WeekDayAbbr NoMod : next
+    'A' -> WeekDayFull NoMod : next
     'U' -> WeekOfYear' ZP : next
     'W' -> WeekOfYear ZP : next
     'w' -> DayOfWeek : next
@@ -213,74 +218,123 @@ formatParts l parts t = foldr go "" (formatPart l t parts)
     go (Char c) acc = c:acc
     go _         acc = acc
 
-{-
+instance FormatTime LocalTime String where
+    formatPart l (LocalTime day tod) =
+        formatPart l day . formatPart l tod
 
-instance FormatTime LocalTime where
-    formatPart l part (LocalTime day tod) =
-        formatPart l part (localTimeOfDay day) . formatPart part l (localTimeOfDay tod)
--}
+instance FormatTime Day String where
+    formatPart _ _ [] = []
+    formatPart l day (part:parts) = case part of
+        Century p      -> show2 p century                 next
+        WDCentury p    -> show2 p century_wd              next
+        Year2 p        -> show2 p yy                      next
+        WDYear2 p      -> show2 p yy_wd                   next
+        Year4 p        -> show4 p yyyy                    next
+        WDYear4 p      -> show4 p yyyy_wd                 next
+        WeekOfYear p   -> show2 p ww                      next
+        WeekOfYear' p  -> show2 p ww'                     next
+        WDWeekOfYear p -> show2 p ww_wd                   next
+        Month p        -> show2 p mm                      next
+        MonthAbbr c    -> Part (modifyCase c monthAbbr) : next
+        MonthFull c    -> Part (modifyCase c monthFull) : next
+        DayOfMonth p   -> show2 p md                      next
+        DayOfYear p    -> show3 p yd                      next
+        DayOfWeek      -> showNP wd                       next
+        WDDayOfWeek    -> showNP wd_wd                    next
+        WeekDayAbbr c  -> Part (modifyCase c wDayAbbr) :  next
+        WeekDayFull c  -> Part (modifyCase c wDayFull) :  next
+        p              -> p :                             next
+      where
+        next = formatPart l day parts
+        (yyyy, mm, md) = toGregorian day
+        (century, yy) = yyyy `divMod` 100
+        (_, yd) = toOrdinalDate day
+        monthAbbr = snd (months l !! (mm - 1))
+        monthFull = fst (months l !! (mm - 1))
+        (yyyy_wd, ww_wd, wd_wd) = toWeekDate day
+        (century_wd, yy_wd) = yyyy_wd `divMod` 100
+        (ww, wd) = mondayStartWeek day
+        (ww', wd') = sundayStartWeek day
+        wDayAbbr = snd (wDays l !! (wd - 1))
+        wDayFull = fst (wDays l !! (wd - 1))
+
 instance FormatTime TimeOfDay String where
-    -- Aggregate
     formatPart _ _ [] = []
     formatPart l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
-        Hour NP -> showNP hour next
-        Hour ZP -> showZP2 hour next
-        Hour SP -> showSP2 hour next
-        HourHalf NP -> showNP hourHalf next
-        HourHalf ZP -> showZP2 hourHalf next
-        HourHalf SP -> showSP2 hourHalf next
-        Minute NP -> showNP minute next
-        Minute ZP -> showZP2 minute next
-        Minute SP -> showSP2 minute next
-        Second NP -> showNP (fromIntegral isec) next
-        Second ZP -> showZP2 (fromIntegral isec) next
-        Second SP -> showSP2 (fromIntegral isec) next
-        MilliSecond  -> showZP3 (fromIntegral (fsec `div` 1000000000)) next
-        MicroSecond  -> showZP6 (fsec `div` 1000000) next
-        NanoSecond   -> showZP9 (fsec`div` 1000) next
-        PicoSecond   -> showZP12 fsec next
-        SecondFrac -> showZP12NT fsec next
-        Char x       -> Char x : next
-        _            -> next
+        Hour p      -> show2 p hour                    next
+        HourHalf p  -> show2 p hourHalf                next
+        Minute p    -> show2 p minute                  next
+        Second p    -> show2 p isec                    next
+        MilliSecond -> showZP3 (fsec `div` 1000000000) next
+        MicroSecond -> showZP6 (fsec `div` 1000000)    next
+        NanoSecond  -> showZP9 (fsec`div` 1000)        next
+        PicoSecond  -> showZP12 fsec                   next
+        SecondFrac  -> showZP12NT fsec                 next
+        DayHalf c   -> Part (modifyCase c dayHalf) :   next
+        p           -> p :                             next
       where
         next = formatPart l t parts
-        {-# INLINE next #-}
         hourHalf = mod (hour - 1) 12 + 1
         (isec, fsec) = fromIntegral ps `divMod` (1000000000000 :: Int64)
+        dayHalf = (if hour < 12 then fst else snd) (amPm l)
 
 --------------------------------------------------------------------------------
 
-type PartS =  [Part String] -> [Part String]
+modifyCase :: CaseModifier -> String -> String
+modifyCase NoMod = id
+modifyCase Upper = map toUpper
+modifyCase Lower = map toLower
+{-# INLINE modifyCase #-}
 
-showNP :: Int -> PartS
+type PartS = [Part String] -> [Part String]
+
+show2 :: (Show a, Integral a) => PaddingModifier -> a -> PartS
+show2 NP = showNP
+show2 ZP = showZP2
+show2 SP = showSP2
+{-# INLINE show2 #-}
+
+show3 :: (Show a, Integral a) => PaddingModifier -> a -> PartS
+show3 NP = showNP
+show3 ZP = showZP3
+show3 SP = showSP3
+{-# INLINE show3 #-}
+
+show4 :: (Show a, Integral a) => PaddingModifier -> a -> PartS
+show4 NP = showNP
+show4 ZP = showZP4
+show4 SP = showSP4
+{-# INLINE show4 #-}
+
+showNP :: (Show a, Integral a) => a -> PartS
 showNP n next = Part (show n) : next
 {-# INLINE showNP #-}
 
-showZP2 :: Int -> PartS
+showZP2 :: (Show a, Integral a) => a -> PartS
 showZP2 n next  = if n < 10 then Part "0" : Part (show n) : next
                             else Part (show n) : next
 {-# INLINE showZP2 #-}
 
-showSP2 :: Int -> PartS
+showSP2 :: (Show a, Integral a) => a -> PartS
 showSP2 n next = if n < 10 then Part " " : Part (show n) : next
                            else Part (show n) : next
 {-# INLINE showSP2 #-}
 
-showZP3 :: Int -> PartS
+showZP3 :: (Show a, Integral a) => a -> PartS
 showZP3 n next
     | n < 10 = Part "00" : Part (show n) : next
     | n < 100 = Part "0" : Part (show n) : next
     | otherwise = Part (show n) : next
 {-# INLINE showZP3 #-}
 
-showSP3 :: Int -> PartS
+showSP3 :: (Show a, Integral a) => a -> PartS
 showSP3 n next
     | n < 10 = Part "  " : Part (show n) : next
     | n < 100 = Part " " : Part (show n) : next
     | otherwise = Part (show n) : next
 {-# INLINE showSP3 #-}
 
-showZP4 :: Int -> PartS
+showZP4 :: (Show a, Integral a) => a -> PartS
 showZP4 n next
     | n < 10 = Part "000" : Part (show n) : next
     | n < 100 = Part "00" : Part (show n) : next
@@ -288,7 +342,7 @@ showZP4 n next
     | otherwise = Part (show n) : next
 {-# INLINE showZP4 #-}
 
-showSP4 :: Int -> PartS
+showSP4 :: (Show a, Integral a) => a -> PartS
 showSP4 n next
     | n < 10 = Part "   " : Part (show n) : next
     | n < 100 = Part "  " : Part (show n) : next
@@ -296,7 +350,7 @@ showSP4 n next
     | otherwise = Part (show n) : next
 {-# INLINE showSP4 #-}
 
-showZP6 :: Int64 -> PartS
+showZP6 :: (Show a, Integral a) => a -> PartS
 showZP6 n next
     | n < 10 = Part "00000" : Part (show n) : next
     | n < 100 = Part "0000" : Part (show n) : next
@@ -306,7 +360,7 @@ showZP6 n next
     | otherwise = Part (show n) : next
 {-# INLINE showZP6 #-}
 
-showZP9 :: Int64 -> PartS
+showZP9 :: (Show a, Integral a) => a -> PartS
 showZP9 n next
     | n < 10 = Part "00000000" : Part (show n) : next
     | n < 100 = Part "0000000" : Part (show n) : next
@@ -319,7 +373,7 @@ showZP9 n next
     | otherwise = Part (show n) : next
 {-# INLINE showZP9 #-}
 
-showZP12 :: Int64 -> PartS
+showZP12 :: (Show a, Integral a) => a -> PartS
 showZP12 n next
     | n < 10 = Part "00000000000" : Part (show n) : next
     | n < 100 = Part "0000000000" : Part (show n) : next
@@ -335,7 +389,7 @@ showZP12 n next
     | otherwise = Part (show n) : next
 {-# INLINE showZP12 #-}
 
-showZP12NT :: Int64 -> PartS
+showZP12NT :: (Show a, Integral a) => a -> PartS
 showZP12NT n next
     | n < 10 = Part "00000000000" : Part (cut (show n)) : next
     | n < 100 = Part "0000000000" : Part (cut (show n)) : next

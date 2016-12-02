@@ -1,346 +1,141 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Data.Time.Format.Part where
 
 import Data.Time.LocalTime
 import Data.Time.Format.Locale
 import Data.Int
 import Data.Fixed
-import Control.Arrow ((&&&))
+
+-- | The @no padding@, @space padded@ and @zero padded@ modifier.
+--
+data PaddingModifier = NP | SP | ZP deriving (Show, Eq, Ord)
+
+-- | The @uppercase@, @no case conversion@ and @uppercase@ modifier.
+--
+data CaseModifier = Lower | NoModify | Upper deriving (Show, Eq, Ord)
 
 -- | All the various formatter that can be part of a time format string.
 -- <http://www.opengroup.org/onlinepubs/007908799/xsh/strftime.html>
 --
-newtype Part = Part Int  -- There's no sign bit in Unicode, so 'Int' can present all 'Char'.
-
-instance Show Part where
-    show (Part (-1) ) =  "NPCentury"
-    show (Part (-2) ) =  "SPCentury"
-    show (Part (-3) ) =  "ZPCentury"
-    show (Part (-4) ) =  "NPWDCentury"
-    show (Part (-5) ) =  "SPWDCentury"
-    show (Part (-6) ) =  "ZPWDCentury"
-    show (Part (-7) ) =  "NPYear2"
-    show (Part (-8) ) =  "SPYear2"
-    show (Part (-9) ) =  "ZPYear2"
-    show (Part (-10)) =  "NPYear4"
-    show (Part (-11)) =  "SPYear4"
-    show (Part (-12)) =  "ZPYear4"
-    show (Part (-13)) =  "NPWDYear2"
-    show (Part (-14)) =  "SPWDYear2"
-    show (Part (-15)) =  "ZPWDYear2"
-    show (Part (-16)) =  "NPWDYear4"
-    show (Part (-17)) =  "SPWDYear4"
-    show (Part (-18)) =  "ZPWDYear4"
-    show (Part (-19)) =  "NPWDWeek"
-    show (Part (-20)) =  "SPWDWeek"
-    show (Part (-21)) =  "ZPWDWeek"
-    show (Part (-22)) =  "WDDayOfWeek"
-    show (Part (-23)) =  "NPMonth"
-    show (Part (-24)) =  "SPMonth"
-    show (Part (-25)) =  "ZPMonth"
-    show (Part (-26)) =  "MonthShortLower"
-    show (Part (-27)) =  "MonthShort"
-    show (Part (-28)) =  "MonthShortUpper"
-    show (Part (-29)) =  "MonthLongLower"
-    show (Part (-30)) =  "MonthLong"
-    show (Part (-31)) =  "MonthLongUpper"
-    show (Part (-32)) =  "NPMonthOfYear"
-    show (Part (-33)) =  "SPMonthOfYear"
-    show (Part (-34)) =  "ZPMonthOfYear"
-    show (Part (-35)) =  "NPDayOfMonth"
-    show (Part (-36)) =  "SPDayOfMonth"
-    show (Part (-37)) =  "ZPDayOfMonth"
-    show (Part (-38)) =  "NPDayOfYear"
-    show (Part (-39)) =  "SPDayOfYear"
-    show (Part (-40)) =  "ZPDayOfYear"
-    show (Part (-41)) =  "DayOfWeek"
-    show (Part (-42)) =  "WeekDayShortLower"
-    show (Part (-43)) =  "WeekDayShort"
-    show (Part (-44)) =  "WeekDayShortUpper"
-    show (Part (-45)) =  "WeekDayLongLower"
-    show (Part (-46)) =  "WeekDayLong"
-    show (Part (-47)) =  "WeekDayLongUpper"
-    show (Part (-48)) =  "NPWeekOfYear'"
-    show (Part (-49)) =  "SPWeekOfYear'"
-    show (Part (-50)) =  "ZPWeekOfYear'"
-    show (Part (-51)) =  "NPWeekOfYear"
-    show (Part (-52)) =  "SPWeekOfYear"
-    show (Part (-53)) =  "ZPWeekOfYear"
-    show (Part (-54)) =  "NPWDWeekOfYear"
-    show (Part (-55)) =  "SPWDWeekOfYear"
-    show (Part (-56)) =  "ZPWDWeekOfYear"
-    show (Part (-57)) =  "DayHalfLower"
-    show (Part (-58)) =  "DayHalfUpper"
-    show (Part (-59)) =  "NPHour"
-    show (Part (-60)) =  "SPHour"
-    show (Part (-61)) =  "ZPHour"
-    show (Part (-62)) =  "NPHourHalf"
-    show (Part (-63)) =  "SPHourHalf"
-    show (Part (-64)) =  "ZPHourHalf"
-    show (Part (-65)) =  "NPMinute"
-    show (Part (-66)) =  "SPMinute"
-    show (Part (-67)) =  "ZPMinute"
-    show (Part (-68)) =  "NPSecond"
-    show (Part (-69)) =  "SPSecond"
-    show (Part (-70)) =  "ZPSecond"
-    show (Part (-71)) =  "PosixSeconds"
-    show (Part (-72)) =  "MilliSecond"
-    show (Part (-73)) =  "MicroSecond"
-    show (Part (-74)) =  "NanoSecond"
-    show (Part (-75)) =  "PicoSecond"
-    show (Part (-76)) =  "TZ"
-    show (Part (-77)) =  "TZColon"
-    show (Part (-78)) =  "TZNameLower"
-    show (Part (-79)) =  "TZNameUpper"
-    show (Part c    ) =  "Char " ++ show c
-
--- | century, no padding.
-pattern NPCentury = Part (-1)
--- | century, space padded to 2 chars
-pattern SPCentury = Part (-2)
--- | century, zero padded to 2 chars
-pattern ZPCentury = Part (-3)
--- | century for Week Date format, no padding
-pattern NPWDCentury = Part (-4)
--- | century for Week Date format, space padded to 2 chars
-pattern SPWDCentury = Part (-5)
--- | century for Week Date format, zero padded to 2 chars
-pattern ZPWDCentury = Part (-6)
--- | year of century (70 is 1970, 69 is 2069), no padding
-pattern NPYear2 = Part (-7)
--- | year of century (70 is 1970, 69 is 2069), space padded to 2 chars
-pattern SPYear2 = Part (-8)
--- | year of century (70 is 1970, 69 is 2069), zero padded to 2 chars
-pattern ZPYear2 = Part (-9)
--- | year, no padding
-pattern NPYear4 = Part (-10)
--- | year, space padded to 4 chars
-pattern SPYear4 = Part (-11)
--- | year, zero padded to 4 chars
-pattern ZPYear4 = Part (-12)
--- | year of century for Week Date format, no padding
-pattern NPWDYear2 = Part (-13)
--- | year of century for Week Date format, space padded to 4 chars
-pattern SPWDYear2 = Part (-14)
--- | year of century for Week Date format, zero padded to 4 chars
-pattern ZPWDYear2 = Part (-15)
--- | year for Week Date format, no padding.
-pattern NPWDYear4 = Part (-16)
--- | year for Week Date format, space padded to 4 chars.
-pattern SPWDYear4 = Part (-17)
--- | year for Week Date format, zero padded to 4 chars.
-pattern ZPWDYear4 = Part (-18)
--- | week of year for Week Date format (1 - 53), no padding.
-pattern NPWDWeek = Part (-19)
--- | week of year for Week Date format (1 - 53), space padded to two chars.
-pattern SPWDWeek = Part (-20)
--- | week of year for Week Date format (1 - 53), zero padded to two chars.
-pattern ZPWDWeek = Part (-21)
--- | day of week for Week Date format, (1 - 7).
-pattern WDDayOfWeek = Part (-22)
--- | months (1 to 12), no padding.
-pattern NPMonth = Part (-23)
--- | months (1 to 12), space padded.
-pattern SPMonth = Part (-24)
--- | months (1 to 12), zero padded.
-pattern ZPMonth = Part (-25)
--- | name of the month short ('snd' from 'months' locale, Jan - Dec), converted to lowercase.
-pattern MonthShortLower = Part (-26)
--- | name of the month short ('snd' from 'months' locale, Jan - Dec).
-pattern MonthShort = Part (-27)
--- | name of the month short ('snd' from 'months' locale, Jan - Dec), converted to uppercase.
-pattern MonthShortUpper = Part (-28)
--- | name of the month long ('snd' from 'months' locale, January - December), converted to lowercase.
-pattern MonthLongLower = Part (-29)
--- | name of the month long ('snd' from 'months' locale, January - December).
-pattern MonthLong = Part (-30)
--- | name of the month long ('snd' from 'months' locale, January - December), converted to uppercase.
-pattern MonthLongUpper = Part (-31)
--- | month of year, (1 - 12), no padding.
-pattern NPMonthOfYear = Part (-32)
--- | month of year, (1 - 12), space padded.
-pattern SPMonthOfYear = Part (-33)
--- | month of year, (1 - 12), zero padded.
-pattern ZPMonthOfYear = Part (-34)
--- | day of month, (1 - 32), no padding
-pattern NPDayOfMonth = Part (-35)
--- | day of month, (1 - 32), space padded.
-pattern SPDayOfMonth = Part (-36)
--- | day of month, (1 - 32), zero padded.
-pattern ZPDayOfMonth = Part (-37)
--- | day of year, (1 - 366), no padding.
-pattern NPDayOfYear = Part (-38)
--- | day of year, (1 - 366), space padded.
-pattern SPDayOfYear = Part (-39)
--- | day of year, (1 - 366), zero padded.
-pattern ZPDayOfYear = Part (-40)
--- | day of week, (1 - 7).
-pattern DayOfWeek = Part (-41)
--- | short weekday name ('snd' from 'wDays' locale, Sun - Sat), converted to lowercase.
-pattern WeekDayShortLower = Part (-42)
--- | short weekday name ('snd' from 'wDays' locale, Sun - Sat)
-pattern WeekDayShort = Part (-43)
--- | short weekday name ('snd' from 'wDays' locale, Sun - Sat), converted to uppercase.
-pattern WeekDayShortUpper = Part (-44)
--- | long weekday name ('snd' from 'wDays' locale, Sunday - Saturday), converted to lowercase.
-pattern WeekDayLongLower = Part (-45)
--- | long weekday name ('snd' from 'wDays' locale, Sunday - Saturday)
-pattern WeekDayLong = Part (-46)
--- | long weekday name ('snd' from 'wDays' locale, Sunday - Saturday), converted to uppercase.
-pattern WeekDayLongUpper = Part (-47)
--- | week of year where weeks start on Sunday (as 'sundayStartWeek', 0 - 53), no padding.
-pattern NPWeekOfYear' = Part (-48)
--- | week of year where weeks start on Sunday (as 'sundayStartWeek', 0 - 53), space padded to two chars.
-pattern SPWeekOfYear' = Part (-49)
--- | week of year where weeks start on Sunday (as 'sundayStartWeek', 0 - 53), zero padded to two chars.
-pattern ZPWeekOfYear' = Part (-50)
--- | week of year where weeks start on Monday (as 'mondayStartWeek', 0 - 53), no padding.
-pattern NPWeekOfYear = Part (-51)
--- | week of year where weeks start on Monday (as 'mondayStartWeek', 0 - 53), space padded.
-pattern SPWeekOfYear = Part (-52)
--- | week of year where weeks start on Monday (as 'mondayStartWeek', 0 - 53), space padded.
-pattern ZPWeekOfYear = Part (-53)
--- | week of year for Week Date format, no padding.
-pattern NPWDWeekOfYear = Part (-54)
--- | week of year for Week Date format, no padding.
-pattern SPWDWeekOfYear = Part (-55)
--- | week of year for Week Date format, no padding.
-pattern ZPWDWeekOfYear = Part (-56)
--- | day-half of day from ('amPm' locale, AM, PM), converted to lowercase.
-pattern DayHalfLower = Part (-57)
--- | day-half of day from ('amPm' locale, AM, PM).
-pattern DayHalfUpper = Part (-58)
--- | hour of day (0 to 23), no padding.
-pattern NPHour = Part (-59)
--- | hour of day (0 to 23), space padded.
-pattern SPHour = Part (-60)
--- | hour of day (0 to 23), zero padded.
-pattern ZPHour = Part (-61)
--- | hour of day-half (0 to 12), no padding.
-pattern NPHourHalf = Part (-62)
--- | hour of day-half (0 to 12), space padded.
-pattern SPHourHalf = Part (-63)
--- | hour of day-half (0 to 12), zero padded.
-pattern ZPHourHalf = Part (-64)
--- | minutes (0 to 59), no padding.
-pattern NPMinute = Part (-65)
--- | minutes (0 to 59), space padded.
-pattern SPMinute = Part (-66)
--- | minutes (0 to 59), zero padded.
-pattern ZPMinute = Part (-67)
--- | seconds (0 to 59, 60 for leap seconds), no padding.
-pattern NPSecond = Part (-68)
--- | seconds (0 to 59, 60 for leap seconds), space padding.
-pattern SPSecond = Part (-69)
--- | seconds (0 to 59, 60 for leap seconds), zero padding.
-pattern ZPSecond = Part (-70)
--- | number of seconds since 1 jan 1970. unix epoch.
-pattern PosixSeconds = Part (-71)
--- | Milliseconds (000 to 999), without trailing zeros
-pattern MilliSecond = Part (-72)
--- | MicroSeconds (000000 to 999999), without trailing zeros
-pattern MicroSecond = Part (-73)
--- | NanoSeconds (000000000 to 999999999), without trailing zeros
-pattern NanoSecond = Part (-74)
--- | PicoSeconds (000000000000 to 999999999999), without trailing zeros.
-pattern PicoSecond = Part (-75)
--- | timeoffset offset (+0200)
-pattern TZ = Part (-76)
--- | timeoffset offset with colon (+02:00)
-pattern TZColon = Part (-77)
--- | timezone name (e.g. GMT, PST), converted to lowercase.
-pattern TZNameLower = Part (-78)
--- | timezone name (e.g. GMT, PST).
-pattern TZNameUpper = Part (-79)
--- | a verbatim char
-pattern Char :: Char -> Part
-pattern Char c <- Part (signum &&& toEnum -> (1, c)) where Char c = Part (fromEnum c)
+data Part
+    = Century PaddingModifier      -- ^ century, padded to 2 chars.
+    | WDCentury PaddingModifier    -- ^ century for Week Date format, padded to 2 chars.
+    | Year2 PaddingModifier        -- ^ year of century (70 is 1970, 69 is 2069), padded to 2 chars.
+    | WDYear2 PaddingModifier      -- ^ year of century for Week Date format, padded to 4 chars
+    | Year4 PaddingModifier        -- ^ year, padded to 4 chars
+    | WDYear4 PaddingModifier      -- ^ year for Week Date format, padded to 4 chars
+    | WeekOfYear PaddingModifier   -- ^ 'mondayStartWeek' of year (0 - 53) , padded to 2 chars
+    | WeekOfYear' PaddingModifier  -- ^ 'sundayStartWeek' of year (0 - 53), padded to 2 chars
+    | WDWeekOfYear PaddingModifier -- ^ week of year for Week Date format, padded to 2 chars.
+    | Month PaddingModifier        -- ^ month of year (1 - 12).
+    | MonthShort CaseModifier      -- ^ name of the month short ('snd' from 'months' locale, Jan - Dec).
+    | MonthLong CaseModifier       -- ^ name of the month long ('snd' from 'months' locale, January - December).
+    | DayOfMonth PaddingModifier
+    | DayOfYear PaddingModifier
+    | DayOfWeek
+    | WDDayOfWeek
+    | WeekDayShort CaseModifier
+    | WeekDayLong CaseModifier
+    | DayHalf CaseModifier
+    | Hour PaddingModifier
+    | HourHalf PaddingModifier
+    | Minute PaddingModifier
+    | Second PaddingModifier
+    | MilliSecond
+    | MicroSecond
+    | NanoSecond
+    | PicoSecond
+    | NTSecondFrac                 -- ^ decimal point and fraction of second, up to 12 decimals without trailing zeros
+    | PosixSeconds
+    | TZ
+    | TZColon
+    | TZName CaseModifier
+    | Char Char
+    | String String
+  deriving (Show, Eq)
 
 mkParts :: TimeLocale -> String -> [Part]
 mkParts l ('%':p:xs) = case p of
     '-' -> case xs of
         (y:ys)
-            | y == 'H' || y == 'k' -> NPHour : next'
-            | y == 'I' || y == 'l' -> NPHourHalf : next'
-            | y == 'M' -> NPMinute : next'
-            | y == 'S' -> NPSecond : next'
-            | y == 'Y' -> NPYear4 : next'
-            | y == 'y' -> NPYear2 : next'
-            | y == 'm' -> NPMonthOfYear : next'
-            | y == 'd' || y == 'e' -> NPDayOfMonth : next'
-            | y == 'j' -> NPDayOfYear : next'
-            | y == 'G' -> NPWDYear4 : next'
-            | y == 'g' -> NPWDYear2 : next'
-            | y == 'f' -> NPWDCentury : next'
-            | y == 'V' -> NPWDWeekOfYear : next'
-            | y == 'U' -> NPWeekOfYear' : next'
-            | y == 'W' -> NPWeekOfYear : next'
+            | y == 'H' || y == 'k' -> Hour NP : next'
+            | y == 'I' || y == 'l' -> HourHalf NP : next'
+            | y == 'M' -> Minute NP : next'
+            | y == 'S' -> Second NP : next'
+            | y == 'Y' -> Year4 NP : next'
+            | y == 'y' -> Year2 NP : next'
+            | y == 'm' -> Month NP : next'
+            | y == 'd' || y == 'e' -> DayOfMonth NP : next'
+            | y == 'j' -> DayOfYear NP : next'
+            | y == 'G' -> WDYear4 NP : next'
+            | y == 'g' -> WDYear2 NP : next'
+            | y == 'f' -> WDCentury NP : next'
+            | y == 'V' -> WDWeekOfYear NP : next'
+            | y == 'U' -> WeekOfYear' NP : next'
+            | y == 'W' -> WeekOfYear NP : next'
             | otherwise -> next
           where next' = mkParts l ys
         _ -> next
 
     '_' -> case xs of
         (y:ys)
-            | y == 'H' || y == 'k' -> SPHour : next'
-            | y == 'I' || y == 'l' -> SPHourHalf : next'
-            | y == 'M' -> SPMinute : next'
-            | y == 'S' -> SPSecond : next'
-            | y == 'Y' -> SPYear4 : next'
-            | y == 'y' -> SPYear2 : next'
-            | y == 'm' -> SPMonthOfYear : next'
-            | y == 'd' || y == 'e' -> SPDayOfMonth : next'
-            | y == 'j' -> SPDayOfYear : next'
-            | y == 'G' -> SPWDYear4 : next'
-            | y == 'g' -> SPWDYear2 : next'
-            | y == 'f' -> SPWDCentury : next'
-            | y == 'V' -> SPWDWeekOfYear : next'
-            | y == 'U' -> SPWeekOfYear' : next'
-            | y == 'W' -> SPWeekOfYear : next'
+            | y == 'H' || y == 'k' -> Hour SP : next'
+            | y == 'I' || y == 'l' -> HourHalf SP : next'
+            | y == 'M' -> Minute SP : next'
+            | y == 'S' -> Second SP : next'
+            | y == 'Y' -> Year4 SP : next'
+            | y == 'y' -> Year2 SP : next'
+            | y == 'm' -> Month SP : next'
+            | y == 'd' || y == 'e' -> DayOfMonth SP : next'
+            | y == 'j' -> DayOfYear SP : next'
+            | y == 'G' -> WDYear4 SP : next'
+            | y == 'g' -> WDYear2 SP : next'
+            | y == 'f' -> WDCentury SP : next'
+            | y == 'V' -> WDWeekOfYear SP : next'
+            | y == 'U' -> WeekOfYear' SP : next'
+            | y == 'W' -> WeekOfYear SP : next'
             | otherwise -> next
           where next' = mkParts l ys
         _ -> next
 
     '0' -> case xs of
         (y:ys)
-            | y == 'H' || y == 'k' -> ZPHour : next'
-            | y == 'I' || y == 'l' -> ZPHourHalf : next'
-            | y == 'M' -> ZPMinute : next'
-            | y == 'S' -> ZPSecond : next'
-            | y == 'Y' -> ZPYear4 : next'
-            | y == 'y' -> ZPYear2 : next'
-            | y == 'm' -> ZPMonthOfYear : next'
-            | y == 'd' || y == 'e' -> ZPDayOfMonth : next'
-            | y == 'j' -> ZPDayOfYear : next'
-            | y == 'G' -> ZPWDYear4 : next'
-            | y == 'g' -> ZPWDYear2 : next'
-            | y == 'f' -> ZPWDCentury : next'
-            | y == 'V' -> ZPWDWeekOfYear : next'
-            | y == 'U' -> ZPWeekOfYear' : next'
-            | y == 'W' -> ZPWeekOfYear : next'
+            | y == 'H' || y == 'k' -> Hour ZP : next'
+            | y == 'I' || y == 'l' -> HourHalf ZP : next'
+            | y == 'M' -> Minute ZP : next'
+            | y == 'S' -> Second ZP : next'
+            | y == 'Y' -> Year4 ZP : next'
+            | y == 'y' -> Year2 ZP : next'
+            | y == 'm' -> Month ZP : next'
+            | y == 'd' || y == 'e' -> DayOfMonth ZP : next'
+            | y == 'j' -> DayOfYear ZP : next'
+            | y == 'G' -> WDYear4 ZP : next'
+            | y == 'g' -> WDYear2 ZP : next'
+            | y == 'f' -> WDCentury ZP : next'
+            | y == 'V' -> WDWeekOfYear ZP : next'
+            | y == 'U' -> WeekOfYear' ZP : next'
+            | y == 'W' -> WeekOfYear ZP : next'
             | otherwise -> next
           where next' = mkParts l ys
         _ -> next
 
     '^' -> case xs of
         (y:ys)
-            | y == 'P' -> DayHalfUpper : next'
-            | y == 'b' || y == 'h' -> MonthShortUpper : next'
-            | y == 'B' -> MonthLongUpper : next'
-            | y == 'a' -> WeekDayShortUpper : next'
-            | y == 'A' -> WeekDayLongUpper : next'
+            | y == 'P' -> DayHalf Upper : next'
+            | y == 'b' || y == 'h' -> MonthShort Upper : next'
+            | y == 'B' -> MonthLong Upper : next'
+            | y == 'a' -> WeekDayShort Upper : next'
+            | y == 'A' -> WeekDayLong Upper : next'
             | otherwise -> next
           where next' = mkParts l ys
         _ -> next
 
     '#' -> case xs of
         (y:ys)
-            | y == 'P' -> DayHalfLower : next'
-            | y == 'b' || y == 'h' -> MonthShortLower : next'
-            | y == 'B' -> MonthLongLower : next'
-            | y == 'a' -> WeekDayShortLower : next'
-            | y == 'A' -> WeekDayLongLower : next'
+            | y == 'P' -> DayHalf Lower : next'
+            | y == 'b' || y == 'h' -> MonthShort Lower : next'
+            | y == 'B' -> MonthLong Lower : next'
+            | y == 'a' -> WeekDayShort Lower : next'
+            | y == 'A' -> WeekDayLong Lower : next'
             | otherwise -> next
           where next' = mkParts l ys
         _ -> next
@@ -348,71 +143,48 @@ mkParts l ('%':p:xs) = case p of
     '%' -> Char '%'  : next
     't' -> Char '\t' : next
     'n' -> Char '\n' : next
-
     'z' -> TZ : next
-    'Z' -> TZNameUpper : next
-
+    'Z' -> TZName Upper : next
     'c' -> mkParts l (dateTimeFmt l) ++ next
-
     'R' -> mkParts l "%H:%M" ++ next
     'T' -> mkParts l "%H:%M:%S" ++ next
     'X' -> mkParts l (timeFmt l) ++ next
     'r' -> mkParts l (time12Fmt l) ++ next
-
-    'P' -> DayHalfLower : next
-    'p' -> DayHalfUpper : next
-
-    'H' -> ZPHour : next
-    'k' -> SPHour : next
-
-    'I' -> ZPHourHalf : next
-    'l' -> SPHourHalf : next
-
-    'M' -> ZPMinute : next
-
-    'S' -> ZPSecond : next
-
+    'P' -> DayHalf Lower : next
+    'p' -> DayHalf Upper : next
+    'H' -> Hour ZP : next
+    'k' -> Hour SP : next
+    'I' -> HourHalf ZP : next
+    'l' -> HourHalf SP : next
+    'M' -> Minute ZP : next
+    'S' -> Second ZP : next
     'q' -> PicoSecond : next
-    'Q' -> Char '.' : PicoSecond : next
-
+    'Q' -> Char '.' : NTSecondFrac : next
     's' -> PosixSeconds : next
     'D' -> mkParts l "%m/%d/%y" ++ next
     'F' -> mkParts l "%Y-%m-%d" ++ next
     'x' -> mkParts l (dateFmt l) ++ next
-
-    'Y' -> NPYear4 : next
-    'y' -> ZPYear2 : next
-
-    'C' -> NPCentury : next
-    'B' -> MonthLong : next
-    'b' -> MonthShort : next
-    'h' -> MonthShort : next
-
-
-    'm' -> ZPMonthOfYear : next
-
-    'd' -> ZPDayOfMonth : next
-    'e' -> SPDayOfMonth : next
-
-    'j' -> ZPDayOfYear : next
-
-    'G' -> NPWDYear4 : next
-    'g' -> ZPWDYear2 : next
-
-    'f' -> ZPWDCentury : next
-
-    'V' -> ZPWDWeekOfYear : next
+    'Y' -> Year4 NP : next
+    'y' -> Year2 ZP : next
+    'C' -> Century NP : next
+    'B' -> MonthLong NoModify: next
+    'b' -> MonthShort NoModify: next
+    'h' -> MonthShort NoModify: next
+    'm' -> Month ZP : next
+    'd' -> DayOfMonth ZP : next
+    'e' -> DayOfMonth SP : next
+    'j' -> DayOfYear ZP : next
+    'G' -> WDYear4 NP : next
+    'g' -> WDYear2 ZP : next
+    'f' -> WDCentury ZP : next
+    'V' -> WDWeekOfYear ZP : next
     'u' -> WDDayOfWeek : next
-
-    'a' -> WeekDayShort : next
-    'A' -> WeekDayLong : next
-
-    'U' -> ZPWeekOfYear' : next
-    'W' -> ZPWeekOfYear : next
-
+    'a' -> WeekDayShort NoModify : next
+    'A' -> WeekDayLong NoModify : next
+    'U' -> WeekOfYear' ZP : next
+    'W' -> WeekOfYear ZP : next
     'w' -> DayOfWeek : next
-
-    _ -> next
+    _   -> next
   where
     next = mkParts l xs
 
@@ -421,118 +193,154 @@ mkParts _ [] = []
 
 --------------------------------------------------------------------------------
 
-formatParts :: (FormatTime t) => TimeLocale -> [Part] -> t -> String
-formatParts l parts t = foldr (\part -> (formatPart l part t .)) id parts ""
-
 class FormatTime t where
-    formatPart ::  TimeLocale -> Part -> t -> ShowS
+    -- | Each @t@ should replace the 'Part' it knows with a 'String' or 'Char' 'Part'.
+    --
+    formatPart ::  TimeLocale -> t -> [Part] -> [Part]
+
+formatParts :: (FormatTime t) => TimeLocale -> [Part] -> t -> String
+formatParts l parts t = foldr go "" (formatPart l t parts)
+  where
+    go (String f) acc = f ++ acc
+    go (Char c) acc = c:acc
+    go _         acc = acc
+
 {-
+
 instance FormatTime LocalTime where
     formatPart l part (LocalTime day tod) =
         formatPart l part (localTimeOfDay day) . formatPart part l (localTimeOfDay tod)
 -}
 instance FormatTime TimeOfDay where
     -- Aggregate
-    formatPart _ part (TimeOfDay hour minute (MkFixed ps)) = case part of
-        NPHour -> shows hour
-        ZPHour -> showsZP2 hour
-        SPHour -> showsSP2 hour
-        NPHourHalf -> shows hourHalf
-        ZPHourHalf -> showsZP2 hourHalf
-        SPHourHalf -> showsSP2 hourHalf
-        NPMinute -> shows minute
-        ZPMinute -> showsZP2 minute
-        SPMinute -> showsSP2 minute
-        NPSecond -> shows isec
-        ZPSecond -> showsZP2 (fromIntegral isec)
-        SPSecond -> showsSP2 (fromIntegral isec)
-        PosixSeconds -> shows isec
-        MilliSecond  -> showsZP3 (fromIntegral (fsec `div` 1000000000))
-        MicroSecond  -> showsZP6 (fsec `div` 1000000)
-        NanoSecond   -> showsZP9 (fsec`div` 1000)
-        PicoSecond   -> showsZP12 fsec
-        Char x       -> (x:)
-        _            -> id
+    formatPart _ _ [] = []
+    formatPart l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
+        Hour NP -> showNP hour next
+        Hour ZP -> showZP2 hour next
+        Hour SP -> showSP2 hour next
+        HourHalf NP -> showNP hourHalf next
+        HourHalf ZP -> showZP2 hourHalf next
+        HourHalf SP -> showSP2 hourHalf next
+        Minute NP -> showNP minute next
+        Minute ZP -> showZP2 minute next
+        Minute SP -> showSP2 minute next
+        Second NP -> showNP (fromIntegral isec) next
+        Second ZP -> showZP2 (fromIntegral isec) next
+        Second SP -> showSP2 (fromIntegral isec) next
+        MilliSecond  -> showZP3 (fromIntegral (fsec `div` 1000000000)) next
+        MicroSecond  -> showZP6 (fsec `div` 1000000) next
+        NanoSecond   -> showZP9 (fsec`div` 1000) next
+        PicoSecond   -> showZP12 fsec next
+        NTSecondFrac -> showZP12NT fsec next
+        Char x       -> Char x : next
+        _            -> next
       where
+        next = formatPart l t parts
+        {-# INLINE next #-}
         hourHalf = mod (hour - 1) 12 + 1
         (isec, fsec) = fromIntegral ps `divMod` (1000000000000 :: Int64)
 
-
 --------------------------------------------------------------------------------
 
-showsZP2 :: Int -> ShowS
-showsZP2 n = if n < 10 then (:) '0' . shows n else shows n
-{-# INLINE showsZP2 #-}
+type PartS =  [Part] -> [Part]
 
-showsSP2 :: Int -> ShowS
-showsSP2 n = if n < 10 then (:) ' ' . shows n else shows n
-{-# INLINE showsSP2 #-}
+showNP :: Int -> PartS
+showNP n next = String (show n) : next
+{-# INLINE showNP #-}
 
-showsZP3 :: Int -> ShowS
-showsZP3 n
-    | n < 10 = (++) "00" . shows n
-    | n < 100 = (++) "0" . shows n
-    | otherwise = shows n
-{-# INLINE showsZP3 #-}
+showZP2 :: Int -> PartS
+showZP2 n next  = if n < 10 then String "0" : String (show n) : next
+                            else String (show n) : next
+{-# INLINE showZP2 #-}
 
-showsSP3 :: Int -> ShowS
-showsSP3 n
-    | n < 10 = (++) "  " . shows n
-    | n < 100 = (++) " " . shows n
-    | otherwise = shows n
-{-# INLINE showsSP3 #-}
+showSP2 :: Int -> PartS
+showSP2 n next = if n < 10 then String " " : String (show n) : next
+                           else String (show n) : next
+{-# INLINE showSP2 #-}
 
-showsZP4 :: Int -> ShowS
-showsZP4 n
-    | n < 10 = (++) "000" . shows n
-    | n < 100 = (++) "00" . shows n
-    | n < 1000 = (++) "0" . shows n
-    | otherwise = shows n
-{-# INLINE showsZP4 #-}
+showZP3 :: Int -> PartS
+showZP3 n next
+    | n < 10 = String "00" : String (show n) : next
+    | n < 100 = String "0" : String (show n) : next
+    | otherwise = String (show n) : next
+{-# INLINE showZP3 #-}
 
-showsSP4 :: Int -> ShowS
-showsSP4 n
-    | n < 10 = (++) "   " . shows n
-    | n < 100 = (++) "  " . shows n
-    | n < 1000 = (++) " " . shows n
-    | otherwise = shows n
-{-# INLINE showsSP4 #-}
+showSP3 :: Int -> PartS
+showSP3 n next
+    | n < 10 = String "  " : String (show n) : next
+    | n < 100 = String " " : String (show n) : next
+    | otherwise = String (show n) : next
+{-# INLINE showSP3 #-}
 
-showsZP6 :: Int64 -> ShowS
-showsZP6 n
-    | n < 10 = (++) "00000" . shows n
-    | n < 100 = (++) "0000" . shows n
-    | n < 1000 = (++) "000" . shows n
-    | n < 10000 = (++) "00" . shows n
-    | n < 100000 = (++) "0" . shows n
-    | otherwise = shows n
-{-# INLINE showsZP6 #-}
+showZP4 :: Int -> PartS
+showZP4 n next
+    | n < 10 = String "000" : String (show n) : next
+    | n < 100 = String "00" : String (show n) : next
+    | n < 1000 = String "0" : String (show n) : next
+    | otherwise = String (show n) : next
+{-# INLINE showZP4 #-}
 
-showsZP9 :: Int64 -> ShowS
-showsZP9 n
-    | n < 10 = (++) "00000000" . shows n
-    | n < 100 = (++) "0000000" . shows n
-    | n < 1000 = (++) "000000" . shows n
-    | n < 10000 = (++) "00000" . shows n
-    | n < 100000 = (++) "0000" . shows n
-    | n < 1000000 = (++) "000" . shows n
-    | n < 10000000 = (++) "00" . shows n
-    | n < 100000000 = (++) "0" . shows n
-    | otherwise = shows n
-{-# INLINE showsZP9 #-}
+showSP4 :: Int -> PartS
+showSP4 n next
+    | n < 10 = String "   " : String (show n) : next
+    | n < 100 = String "  " : String (show n) : next
+    | n < 1000 = String " " : String (show n) : next
+    | otherwise = String (show n) : next
+{-# INLINE showSP4 #-}
 
-showsZP12 :: Int64 -> ShowS
-showsZP12 n
-    | n < 10 = (++) "00000000000" . shows n
-    | n < 100 = (++) "0000000000" . shows n
-    | n < 1000 = (++) "000000000" . shows n
-    | n < 10000 = (++) "00000000" . shows n
-    | n < 100000 = (++) "0000000" . shows n
-    | n < 1000000 = (++) "000000" . shows n
-    | n < 10000000 = (++) "00000" . shows n
-    | n < 100000000 = (++) "0000" . shows n
-    | n < 1000000000 = (++) "000" . shows n
-    | n < 10000000000 = (++) "00" . shows n
-    | n < 100000000000 = (++) "0" . shows n
-    | otherwise = shows n
-{-# INLINE showsZP12 #-}
+showZP6 :: Int64 -> PartS
+showZP6 n next
+    | n < 10 = String "00000" : String (show n) : next
+    | n < 100 = String "0000" : String (show n) : next
+    | n < 1000 = String "000" : String (show n) : next
+    | n < 10000 = String "00" : String (show n) : next
+    | n < 100000 = String "0" : String (show n) : next
+    | otherwise = String (show n) : next
+{-# INLINE showZP6 #-}
+
+showZP9 :: Int64 -> PartS
+showZP9 n next
+    | n < 10 = String "00000000" : String (show n) : next
+    | n < 100 = String "0000000" : String (show n) : next
+    | n < 1000 = String "000000" : String (show n) : next
+    | n < 10000 = String "00000" : String (show n) : next
+    | n < 100000 = String "0000" : String (show n) : next
+    | n < 1000000 = String "000" : String (show n) : next
+    | n < 10000000 = String "00" : String (show n) : next
+    | n < 100000000 = String "0" : String (show n) : next
+    | otherwise = String (show n) : next
+{-# INLINE showZP9 #-}
+
+showZP12 :: Int64 -> PartS
+showZP12 n next
+    | n < 10 = String "00000000000" : String (show n) : next
+    | n < 100 = String "0000000000" : String (show n) : next
+    | n < 1000 = String "000000000" : String (show n) : next
+    | n < 10000 = String "00000000" : String (show n) : next
+    | n < 100000 = String "0000000" : String (show n) : next
+    | n < 1000000 = String "000000" : String (show n) : next
+    | n < 10000000 = String "00000" : String (show n) : next
+    | n < 100000000 = String "0000" : String (show n) : next
+    | n < 1000000000 = String "000" : String (show n) : next
+    | n < 10000000000 = String "00" : String (show n) : next
+    | n < 100000000000 = String "0" : String (show n) : next
+    | otherwise = String (show n) : next
+{-# INLINE showZP12 #-}
+
+showZP12NT :: Int64 -> PartS
+showZP12NT n next
+    | n < 10 = String "00000000000" : String (cut (show n)) : next
+    | n < 100 = String "0000000000" : String (cut (show n)) : next
+    | n < 1000 = String "000000000" : String (cut (show n)) : next
+    | n < 10000 = String "00000000" : String (cut (show n)) : next
+    | n < 100000 = String "0000000" : String (cut (show n)) : next
+    | n < 1000000 = String "000000" : String (cut (show n)) : next
+    | n < 10000000 = String "00000" : String (cut (show n)) : next
+    | n < 100000000 = String "0000" : String (cut (show n)) : next
+    | n < 1000000000 = String "000" : String (cut (show n)) : next
+    | n < 10000000000 = String "00" : String (cut (show n)) : next
+    | n < 100000000000 = String "0" : String (cut (show n)) : next
+    | otherwise = String (cut (show n)) : next
+  where
+    cut = takeWhile (/= '0')
+{-# INLINE showZP12NT #-}

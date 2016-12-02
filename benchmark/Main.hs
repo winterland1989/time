@@ -6,7 +6,8 @@ import  Data.Time.Clock
 import  Data.Time.Calendar
 import  Data.Time.Clock.POSIX
 import  Data.Time.LocalTime
-import  Data.Time.Format
+import  Data.Time.Format.Part
+import  Data.Time.Format.Locale
 import  Data.Time.Clock
 
 import qualified "time" Data.Time.Clock       as O
@@ -29,12 +30,18 @@ main = do
     otz <- O.getCurrentTimeZone
     oct <- O.getCurrentTime
 
+    zt <- getZonedTime
+    let parts = mkParts defaultTimeLocale rfc822DateFormat
+        lt = zonedTimeToLocalTime zt
+        tod = localTimeOfDay lt
+
+
     defaultMain
         [ bgroup "new"
             [ bench "getCurrentTime" $ nfIO getCurrentTime
             , bench "getPOSIXTime" $ nfIO getPOSIXTime
             , bench "getZonedTime" $ nfIO getZonedTime
-            , bench "formatTime" $ nf (formatTime defaultTimeLocale "%a, %_d %b %Y %H:%M:%S %Z") ct
+            , bench "formatParts" $ nf (formatParts defaultTimeLocale parts) tod
             ]
         ,
           bgroup "old"

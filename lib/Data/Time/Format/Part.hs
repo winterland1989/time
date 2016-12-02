@@ -1,3 +1,7 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Data.Time.Format.Part where
 
 import Data.Time.LocalTime
@@ -9,14 +13,16 @@ import Data.Fixed
 --
 data PaddingModifier = NP | SP | ZP deriving (Show, Eq, Ord)
 
--- | The @uppercase@, @no case conversion@ and @uppercase@ modifier.
+-- | The @lowercase@, @no case conversion@ and @uppercase@ modifier.
 --
 data CaseModifier = Lower | NoModify | Upper deriving (Show, Eq, Ord)
 
 -- | All the various formatter that can be part of a time format string.
 -- <http://www.opengroup.org/onlinepubs/007908799/xsh/strftime.html>
 --
-data Part
+-- 'Part' is parametrized by a @builder@ type, for easily implementing other backends.
+--
+data Part a
     = Century PaddingModifier      -- ^ century, padded to 2 chars.
     | WDCentury PaddingModifier    -- ^ century for Week Date format, padded to 2 chars.
     | Year2 PaddingModifier        -- ^ year of century (70 is 1970, 69 is 2069), padded to 2 chars.
@@ -44,16 +50,16 @@ data Part
     | MicroSecond
     | NanoSecond
     | PicoSecond
-    | NTSecondFrac                 -- ^ decimal point and fraction of second, up to 12 decimals without trailing zeros
+    | SecondFrac                   -- ^ decimal point and fraction of second, up to 12 decimals without trailing zeros
     | PosixSeconds
     | TZ
     | TZColon
     | TZName CaseModifier
     | Char Char
-    | String String
+    | Part a
   deriving (Show, Eq)
 
-mkParts :: TimeLocale -> String -> [Part]
+mkParts :: TimeLocale -> String -> [Part a]
 mkParts l ('%':p:xs) = case p of
     '-' -> case xs of
         (y:ys)
@@ -159,7 +165,7 @@ mkParts l ('%':p:xs) = case p of
     'M' -> Minute ZP : next
     'S' -> Second ZP : next
     'q' -> PicoSecond : next
-    'Q' -> Char '.' : NTSecondFrac : next
+    'Q' -> Char '.' : SecondFrac : next
     's' -> PosixSeconds : next
     'D' -> mkParts l "%m/%d/%y" ++ next
     'F' -> mkParts l "%Y-%m-%d" ++ next
@@ -193,15 +199,17 @@ mkParts _ [] = []
 
 --------------------------------------------------------------------------------
 
-class FormatTime t where
-    -- | Each @t@ should replace the 'Part' it knows with a 'String' or 'Char' 'Part'.
+class FormatTime t builder where
+    -- | Each @t@ should replace the 'Part' s it knows with a 'Part' 'builder',
+    -- 'Char' can be either left as it is or be processed depend
+    -- on different implementation.
     --
-    formatPart ::  TimeLocale -> t -> [Part] -> [Part]
+    formatPart ::  TimeLocale -> t -> [Part builder] -> [Part builder]
 
-formatParts :: (FormatTime t) => TimeLocale -> [Part] -> t -> String
+formatParts :: (FormatTime t String) => TimeLocale -> [Part String] -> t -> String
 formatParts l parts t = foldr go "" (formatPart l t parts)
   where
-    go (String f) acc = f ++ acc
+    go (Part f) acc = f ++ acc
     go (Char c) acc = c:acc
     go _         acc = acc
 
@@ -211,7 +219,7 @@ instance FormatTime LocalTime where
     formatPart l part (LocalTime day tod) =
         formatPart l part (localTimeOfDay day) . formatPart part l (localTimeOfDay tod)
 -}
-instance FormatTime TimeOfDay where
+instance FormatTime TimeOfDay String where
     -- Aggregate
     formatPart _ _ [] = []
     formatPart l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
@@ -231,7 +239,7 @@ instance FormatTime TimeOfDay where
         MicroSecond  -> showZP6 (fsec `div` 1000000) next
         NanoSecond   -> showZP9 (fsec`div` 1000) next
         PicoSecond   -> showZP12 fsec next
-        NTSecondFrac -> showZP12NT fsec next
+        SecondFrac -> showZP12NT fsec next
         Char x       -> Char x : next
         _            -> next
       where
@@ -242,105 +250,105 @@ instance FormatTime TimeOfDay where
 
 --------------------------------------------------------------------------------
 
-type PartS =  [Part] -> [Part]
+type PartS =  [Part String] -> [Part String]
 
 showNP :: Int -> PartS
-showNP n next = String (show n) : next
+showNP n next = Part (show n) : next
 {-# INLINE showNP #-}
 
 showZP2 :: Int -> PartS
-showZP2 n next  = if n < 10 then String "0" : String (show n) : next
-                            else String (show n) : next
+showZP2 n next  = if n < 10 then Part "0" : Part (show n) : next
+                            else Part (show n) : next
 {-# INLINE showZP2 #-}
 
 showSP2 :: Int -> PartS
-showSP2 n next = if n < 10 then String " " : String (show n) : next
-                           else String (show n) : next
+showSP2 n next = if n < 10 then Part " " : Part (show n) : next
+                           else Part (show n) : next
 {-# INLINE showSP2 #-}
 
 showZP3 :: Int -> PartS
 showZP3 n next
-    | n < 10 = String "00" : String (show n) : next
-    | n < 100 = String "0" : String (show n) : next
-    | otherwise = String (show n) : next
+    | n < 10 = Part "00" : Part (show n) : next
+    | n < 100 = Part "0" : Part (show n) : next
+    | otherwise = Part (show n) : next
 {-# INLINE showZP3 #-}
 
 showSP3 :: Int -> PartS
 showSP3 n next
-    | n < 10 = String "  " : String (show n) : next
-    | n < 100 = String " " : String (show n) : next
-    | otherwise = String (show n) : next
+    | n < 10 = Part "  " : Part (show n) : next
+    | n < 100 = Part " " : Part (show n) : next
+    | otherwise = Part (show n) : next
 {-# INLINE showSP3 #-}
 
 showZP4 :: Int -> PartS
 showZP4 n next
-    | n < 10 = String "000" : String (show n) : next
-    | n < 100 = String "00" : String (show n) : next
-    | n < 1000 = String "0" : String (show n) : next
-    | otherwise = String (show n) : next
+    | n < 10 = Part "000" : Part (show n) : next
+    | n < 100 = Part "00" : Part (show n) : next
+    | n < 1000 = Part "0" : Part (show n) : next
+    | otherwise = Part (show n) : next
 {-# INLINE showZP4 #-}
 
 showSP4 :: Int -> PartS
 showSP4 n next
-    | n < 10 = String "   " : String (show n) : next
-    | n < 100 = String "  " : String (show n) : next
-    | n < 1000 = String " " : String (show n) : next
-    | otherwise = String (show n) : next
+    | n < 10 = Part "   " : Part (show n) : next
+    | n < 100 = Part "  " : Part (show n) : next
+    | n < 1000 = Part " " : Part (show n) : next
+    | otherwise = Part (show n) : next
 {-# INLINE showSP4 #-}
 
 showZP6 :: Int64 -> PartS
 showZP6 n next
-    | n < 10 = String "00000" : String (show n) : next
-    | n < 100 = String "0000" : String (show n) : next
-    | n < 1000 = String "000" : String (show n) : next
-    | n < 10000 = String "00" : String (show n) : next
-    | n < 100000 = String "0" : String (show n) : next
-    | otherwise = String (show n) : next
+    | n < 10 = Part "00000" : Part (show n) : next
+    | n < 100 = Part "0000" : Part (show n) : next
+    | n < 1000 = Part "000" : Part (show n) : next
+    | n < 10000 = Part "00" : Part (show n) : next
+    | n < 100000 = Part "0" : Part (show n) : next
+    | otherwise = Part (show n) : next
 {-# INLINE showZP6 #-}
 
 showZP9 :: Int64 -> PartS
 showZP9 n next
-    | n < 10 = String "00000000" : String (show n) : next
-    | n < 100 = String "0000000" : String (show n) : next
-    | n < 1000 = String "000000" : String (show n) : next
-    | n < 10000 = String "00000" : String (show n) : next
-    | n < 100000 = String "0000" : String (show n) : next
-    | n < 1000000 = String "000" : String (show n) : next
-    | n < 10000000 = String "00" : String (show n) : next
-    | n < 100000000 = String "0" : String (show n) : next
-    | otherwise = String (show n) : next
+    | n < 10 = Part "00000000" : Part (show n) : next
+    | n < 100 = Part "0000000" : Part (show n) : next
+    | n < 1000 = Part "000000" : Part (show n) : next
+    | n < 10000 = Part "00000" : Part (show n) : next
+    | n < 100000 = Part "0000" : Part (show n) : next
+    | n < 1000000 = Part "000" : Part (show n) : next
+    | n < 10000000 = Part "00" : Part (show n) : next
+    | n < 100000000 = Part "0" : Part (show n) : next
+    | otherwise = Part (show n) : next
 {-# INLINE showZP9 #-}
 
 showZP12 :: Int64 -> PartS
 showZP12 n next
-    | n < 10 = String "00000000000" : String (show n) : next
-    | n < 100 = String "0000000000" : String (show n) : next
-    | n < 1000 = String "000000000" : String (show n) : next
-    | n < 10000 = String "00000000" : String (show n) : next
-    | n < 100000 = String "0000000" : String (show n) : next
-    | n < 1000000 = String "000000" : String (show n) : next
-    | n < 10000000 = String "00000" : String (show n) : next
-    | n < 100000000 = String "0000" : String (show n) : next
-    | n < 1000000000 = String "000" : String (show n) : next
-    | n < 10000000000 = String "00" : String (show n) : next
-    | n < 100000000000 = String "0" : String (show n) : next
-    | otherwise = String (show n) : next
+    | n < 10 = Part "00000000000" : Part (show n) : next
+    | n < 100 = Part "0000000000" : Part (show n) : next
+    | n < 1000 = Part "000000000" : Part (show n) : next
+    | n < 10000 = Part "00000000" : Part (show n) : next
+    | n < 100000 = Part "0000000" : Part (show n) : next
+    | n < 1000000 = Part "000000" : Part (show n) : next
+    | n < 10000000 = Part "00000" : Part (show n) : next
+    | n < 100000000 = Part "0000" : Part (show n) : next
+    | n < 1000000000 = Part "000" : Part (show n) : next
+    | n < 10000000000 = Part "00" : Part (show n) : next
+    | n < 100000000000 = Part "0" : Part (show n) : next
+    | otherwise = Part (show n) : next
 {-# INLINE showZP12 #-}
 
 showZP12NT :: Int64 -> PartS
 showZP12NT n next
-    | n < 10 = String "00000000000" : String (cut (show n)) : next
-    | n < 100 = String "0000000000" : String (cut (show n)) : next
-    | n < 1000 = String "000000000" : String (cut (show n)) : next
-    | n < 10000 = String "00000000" : String (cut (show n)) : next
-    | n < 100000 = String "0000000" : String (cut (show n)) : next
-    | n < 1000000 = String "000000" : String (cut (show n)) : next
-    | n < 10000000 = String "00000" : String (cut (show n)) : next
-    | n < 100000000 = String "0000" : String (cut (show n)) : next
-    | n < 1000000000 = String "000" : String (cut (show n)) : next
-    | n < 10000000000 = String "00" : String (cut (show n)) : next
-    | n < 100000000000 = String "0" : String (cut (show n)) : next
-    | otherwise = String (cut (show n)) : next
+    | n < 10 = Part "00000000000" : Part (cut (show n)) : next
+    | n < 100 = Part "0000000000" : Part (cut (show n)) : next
+    | n < 1000 = Part "000000000" : Part (cut (show n)) : next
+    | n < 10000 = Part "00000000" : Part (cut (show n)) : next
+    | n < 100000 = Part "0000000" : Part (cut (show n)) : next
+    | n < 1000000 = Part "000000" : Part (cut (show n)) : next
+    | n < 10000000 = Part "00000" : Part (cut (show n)) : next
+    | n < 100000000 = Part "0000" : Part (cut (show n)) : next
+    | n < 1000000000 = Part "000" : Part (cut (show n)) : next
+    | n < 10000000000 = Part "00" : Part (cut (show n)) : next
+    | n < 100000000000 = Part "0" : Part (cut (show n)) : next
+    | otherwise = Part (cut (show n)) : next
   where
     cut = takeWhile (/= '0')
 {-# INLINE showZP12NT #-}

@@ -35,13 +35,13 @@ main = do
         lt = zonedTimeToLocalTime zt
         tod = localTimeOfDay lt
 
-    print $ (formatParts defaultTimeLocale parts) lt
-    print $ (formatParts defaultTimeLocale parts) tod
+    print $ (formatTimePart defaultTimeLocale parts) lt
+    print $ (formatTimePart defaultTimeLocale parts) tod
     defaultMain
         [ bgroup "new"
             [ bench "getCurrentTime" $ nfIO getCurrentTime
-            , bench "formatParts@LocalTime" $ nf (formatParts defaultTimeLocale parts) lt
-            , bench "formatParts@TimeOfDay" $ nf (formatParts defaultTimeLocale parts) tod
+            , bench "formatParts@LocalTime" $ nf (formatTimePart defaultTimeLocale parts) lt
+            , bench "formatParts@TimeOfDay" $ nf (formatTimePart defaultTimeLocale parts) tod
             , bench "getPOSIXTime" $ nfIO getPOSIXTime
             , bench "getZonedTime" $ nfIO getZonedTime
             ]

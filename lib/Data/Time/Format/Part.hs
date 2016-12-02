@@ -12,7 +12,6 @@ import Data.Fixed
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Calendar.OrdinalDate (toOrdinalDate, mondayStartWeek, sundayStartWeek)
-import Debug.Trace (trace)
 
 -- | The @no padding@, @space padded@ and @zero padded@ modifier.
 --
@@ -204,22 +203,22 @@ class FormatTime t builder where
     -- 'Char' can be either left as it is or be processed depend
     -- on different implementation.
     --
-    formatPart ::  TimeLocale -> t -> [Part builder] -> [Part builder]
+    buildTimePart ::  TimeLocale -> t -> [Part builder] -> [Part builder]
 
-formatParts :: (FormatTime t String) => TimeLocale -> [Part String] -> t -> String
-formatParts l parts t = foldr go "" (formatPart l t parts)
+formatTimePart :: (FormatTime t String) => TimeLocale -> [Part String] -> t -> String
+formatTimePart l parts t = foldr go "" (buildTimePart l t parts)
   where
     go (Part f) acc = f ++ acc
     go (Char c) acc = c:acc
     go _        acc = acc
 
 instance FormatTime LocalTime String where
-    formatPart l (LocalTime day tod) =
-        formatPart l day . formatPart l tod
+    buildTimePart l (LocalTime day tod) =
+        buildTimePart l day . buildTimePart l tod
 
 instance FormatTime Day String where
-    formatPart _ _ [] = []
-    formatPart l day (part:parts) = case part of
+    buildTimePart _ _ [] = []
+    buildTimePart l day (part:parts) = case part of
         Century p      -> show2 p century                 next
         WDCentury p    -> show2 p century_wd              next
         Year2 p        -> show2 p yy                      next
@@ -240,7 +239,7 @@ instance FormatTime Day String where
         WeekDayFull c  -> Part (modifyCase c wDayFull) :  next
         p              -> p :                             next
       where
-        next = formatPart l day parts
+        next = buildTimePart l day parts
         (yyyy, mm, md) = toGregorian day
         (century, yy) = yyyy `divMod` 100
         (_, yd) = toOrdinalDate day
@@ -254,8 +253,8 @@ instance FormatTime Day String where
         wDayFull = fst (wDays l !! (wd - 1))
 
 instance FormatTime TimeOfDay String where
-    formatPart _ _ [] = []
-    formatPart l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
+    buildTimePart _ _ [] = []
+    buildTimePart l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
         Hour p      -> show2 p hour                    next
         HourHalf p  -> show2 p hourHalf                next
         Minute p    -> show2 p minute                  next
@@ -268,7 +267,7 @@ instance FormatTime TimeOfDay String where
         DayHalf c   -> Part (modifyCase c dayHalf) :   next
         p           -> p :                             next
       where
-        next = formatPart l t parts
+        next = buildTimePart l t parts
         hourHalf = mod (hour - 1) 12 + 1
         (isec, fsec) = fromIntegral ps `divMod` (1000000000000 :: Int64)
         dayHalf = (if hour < 12 then fst else snd) (amPm l)
@@ -306,8 +305,8 @@ showNP n next = Part (show n) : next
 {-# INLINE showNP #-}
 
 showZP2 :: (Show a, Integral a) => a -> PartS
-showZP2 n next  = if n < 10 then Part "0" : Part (show n) : next
-                            else Part (show n) : next
+showZP2 n next = if n < 10 then Part "0" : Part (show n) : next
+                           else Part (show n) : next
 {-# INLINE showZP2 #-}
 
 showSP2 :: (Show a, Integral a) => a -> PartS

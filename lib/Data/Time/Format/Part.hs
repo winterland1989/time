@@ -203,7 +203,7 @@ mkParts _ [] = []
 --------------------------------------------------------------------------------
 
 class FormatTime t builder where
-    -- | Each @t@ should replace the 'Part' s it knows with a 'Part' 'builder',
+    -- | Each @t@ should replace the 'Part' s it knows with a 'Builder' 'builder',
     -- 'Data.Time.Format.Part.Char' and 'Data.Time.Format.Part.String' can be either
     -- left as it is or be processed depend on different implementation.
     --
@@ -292,7 +292,7 @@ instance FormatTime Day String where
         wDayFull = fst (wDays l !! wd')
 
 instance FormatTime TimeOfDay String where
-    buildTimeParts l t = foldr go []
+    buildTimeParts l (TimeOfDay hour minute (MkFixed ps)) = foldr go []
       where
         go part next = case part of
             Hour p      -> show2 p hour                     next
@@ -306,7 +306,6 @@ instance FormatTime TimeOfDay String where
             SecondFrac  -> showZP12NT fsec                  next
             DayHalf c   -> Builder (modifyCase c dayHalf) : next
             p           -> p :                              next
-        TimeOfDay hour minute (MkFixed ps) = t
         hourHalf = mod (hour - 1) 12 + 1
         (isec, fsec) = (fromIntegral ps) `quotRem` (1000000000000 :: Int64)
         dayHalf = (if hour < 12 then fst else snd) (amPm l)

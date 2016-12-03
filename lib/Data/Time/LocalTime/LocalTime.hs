@@ -89,7 +89,7 @@ instance Show UniversalTime where
 -- | A local time together with a TimeZone.
 data ZonedTime = ZonedTime {
     zonedTimeToLocalTime :: !LocalTime,
-    zonedTimeZone :: !TimeZone
+    zonedTimeZone        :: !TimeZone
 } deriving (Data, Typeable)
 
 instance NFData ZonedTime where

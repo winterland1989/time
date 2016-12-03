@@ -13,6 +13,7 @@ import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Calendar.OrdinalDate (toOrdinalDate, mondayStartWeek, sundayStartWeek)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Time.Clock
 
 -- | The @no padding@, @space padded@ and @zero padded@ modifier.
 --
@@ -216,89 +217,88 @@ formatTimeParts l parts t = foldr go "" (buildTimeParts l t parts)
     go (String s) acc = s ++ acc
     go _        acc = acc
 
+instance FormatTime UTCTime String where
+    buildTimeParts l ut = buildTimeParts l (utcToZonedTime utc ut)
+
 instance FormatTime ZonedTime String where
-    buildTimeParts l zt@(ZonedTime lt tz) parts =
-        let parts' = buildTimeParts l lt (buildTimeParts l tz parts)
-        in buildPosixSeconds parts'
+    buildTimeParts l zt@(ZonedTime lt tz) =
+        buildTimeParts l lt . buildTimeParts l tz . foldr go []
       where
-        buildPosixSeconds [] = []
-        buildPosixSeconds (part:parts'') = case part of
-            PosixSeconds -> showNP posixS (buildPosixSeconds parts'')
-            p -> p : buildPosixSeconds parts''
+        go part next = case part of
+            PosixSeconds -> showNP posixS next
+            p -> p : next
         posixS = floor (utcTimeToPOSIXSeconds (zonedTimeToUTC zt)) :: Integer
 
 instance FormatTime TimeZone String where
-    buildTimeParts _ _ [] = []
-    buildTimeParts l tz (part:parts) = case part of
-        TZ        -> Char sign : showSP2 h (showSP2 m next)
-        TZColon   -> Char sign : showSP2 h (Char ':' : showSP2 m next)
-        TZName c  -> Builder name : next
-        p         -> p : next
+    buildTimeParts l tz = foldr go []
       where
-        next = buildTimeParts l tz parts
+        go part next = case part of
+            TZ        -> Char sign : showSP2 h (showSP2 m next)
+            TZColon   -> Char sign : showSP2 h (Char ':' : showSP2 m next)
+            TZName c  -> Builder name : next
+            p         -> p : next
         t = timeZoneMinutes tz
         name = timeZoneName tz
         sign = if t < 0 then '-' else '+'
-        (h, m) =  abs t `divMod` 60
+        (h, m) =  abs t `quotRem` 60
 
 instance FormatTime LocalTime String where
     buildTimeParts l (LocalTime day tod) =
         buildTimeParts l day . buildTimeParts l tod
 
 instance FormatTime Day String where
-    buildTimeParts _ _ [] = []
-    buildTimeParts l day (part:parts) = case part of
-        Century p      -> show2 p century                    next
-        WDCentury p    -> show2 p century_wd                 next
-        Year2 p        -> show2 p yy                         next
-        WDYear2 p      -> show2 p yy_wd                      next
-        Year4 p        -> show4 p yyyy                       next
-        WDYear4 p      -> show4 p yyyy_wd                    next
-        WeekOfYear p   -> show2 p ww                         next
-        WeekOfYear' p  -> show2 p ww'                        next
-        WDWeekOfYear p -> show2 p ww_wd                      next
-        Month p        -> show2 p mm                         next
-        MonthAbbr c    -> Builder (modifyCase c monthAbbr) : next
-        MonthFull c    -> Builder (modifyCase c monthFull) : next
-        DayOfMonth p   -> show2 p md                         next
-        DayOfYear p    -> show3 p yd                         next
-        DayOfWeek      -> showNP wd'                         next
-        WDDayOfWeek    -> showNP wd_wd                       next
-        WeekDayAbbr c  -> Builder (modifyCase c wDayAbbr) :  next
-        WeekDayFull c  -> Builder (modifyCase c wDayFull) :  next
-        p              -> p :                                next
+    buildTimeParts l day = foldr go []
       where
-        next = buildTimeParts l day parts
+        go part next = case part of
+            Century p      -> show2 p century                    next
+            WDCentury p    -> show2 p century_wd                 next
+            Year2 p        -> show2 p yy                         next
+            WDYear2 p      -> show2 p yy_wd                      next
+            Year4 p        -> show4 p yyyy                       next
+            WDYear4 p      -> show4 p yyyy_wd                    next
+            WeekOfYear p   -> show2 p ww                         next
+            WeekOfYear' p  -> show2 p ww'                        next
+            WDWeekOfYear p -> show2 p ww_wd                      next
+            Month p        -> show2 p mm                         next
+            MonthAbbr c    -> Builder (modifyCase c monthAbbr) : next
+            MonthFull c    -> Builder (modifyCase c monthFull) : next
+            DayOfMonth p   -> show2 p md                         next
+            DayOfYear p    -> show3 p yd                         next
+            DayOfWeek      -> showNP wd'                         next
+            WDDayOfWeek    -> showNP wd_wd                       next
+            WeekDayAbbr c  -> Builder (modifyCase c wDayAbbr) :  next
+            WeekDayFull c  -> Builder (modifyCase c wDayFull) :  next
+            p              -> p :                                next
         (yyyy, mm, md) = toGregorian day
-        (century, yy) = yyyy `divMod` 100
+        (century, yy) = yyyy `quotRem` 100
         (_, yd) = toOrdinalDate day
         monthAbbr = snd (months l !! (mm - 1))
         monthFull = fst (months l !! (mm - 1))
         (yyyy_wd, ww_wd, wd_wd) = toWeekDate day
-        (century_wd, yy_wd) = yyyy_wd `divMod` 100
+        (century_wd, yy_wd) = yyyy_wd `quotRem` 100
         (ww, _) = mondayStartWeek day   -- 1 - 7
         (ww', wd') = sundayStartWeek day -- 0 - 6
         wDayAbbr = snd (wDays l !! wd')
         wDayFull = fst (wDays l !! wd')
 
 instance FormatTime TimeOfDay String where
-    buildTimeParts _ _ [] = []
-    buildTimeParts l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
-        Hour p      -> show2 p hour                     next
-        HourHalf p  -> show2 p hourHalf                 next
-        Minute p    -> show2 p minute                   next
-        Second p    -> show2 p isec                     next
-        MilliSecond -> showZP3 (fsec `div` 1000000000)  next
-        MicroSecond -> showZP6 (fsec `div` 1000000)     next
-        NanoSecond  -> showZP9 (fsec`div` 1000)         next
-        PicoSecond  -> showZP12 fsec                    next
-        SecondFrac  -> showZP12NT fsec                  next
-        DayHalf c   -> Builder (modifyCase c dayHalf) : next
-        p           -> p :                              next
+    buildTimeParts l t = foldr go []
       where
-        next = buildTimeParts l t parts
+        go part next = case part of
+            Hour p      -> show2 p hour                     next
+            HourHalf p  -> show2 p hourHalf                 next
+            Minute p    -> show2 p minute                   next
+            Second p    -> show2 p isec                     next
+            MilliSecond -> showZP3 (fsec `div` 1000000000)  next
+            MicroSecond -> showZP6 (fsec `div` 1000000)     next
+            NanoSecond  -> showZP9 (fsec `div` 1000)        next
+            PicoSecond  -> showZP12 fsec                    next
+            SecondFrac  -> showZP12NT fsec                  next
+            DayHalf c   -> Builder (modifyCase c dayHalf) : next
+            p           -> p :                              next
+        TimeOfDay hour minute (MkFixed ps) = t
         hourHalf = mod (hour - 1) 12 + 1
-        (isec, fsec) = fromIntegral ps `divMod` (1000000000000 :: Int64)
+        (isec, fsec) = (fromIntegral ps) `quotRem` (1000000000000 :: Int64)
         dayHalf = (if hour < 12 then fst else snd) (amPm l)
 
 --------------------------------------------------------------------------------
@@ -315,23 +315,31 @@ show2 :: (Show a, Integral a) => PaddingModifier -> a -> PartS
 show2 NP = showNP
 show2 ZP = showZP2
 show2 SP = showSP2
-{-# INLINE show2 #-}
+{-# INLINABLE show2 #-}
+{-# SPECIALIZE show2 :: PaddingModifier -> Int -> PartS #-}
+{-# SPECIALIZE show2 :: PaddingModifier -> Integer -> PartS #-}
 
 show3 :: (Show a, Integral a) => PaddingModifier -> a -> PartS
 show3 NP = showNP
 show3 ZP = showZP3
 show3 SP = showSP3
-{-# INLINE show3 #-}
+{-# INLINABLE show3 #-}
+{-# SPECIALIZE show3 :: PaddingModifier -> Int -> PartS #-}
+{-# SPECIALIZE show3 :: PaddingModifier -> Integer -> PartS #-}
 
 show4 :: (Show a, Integral a) => PaddingModifier -> a -> PartS
 show4 NP = showNP
 show4 ZP = showZP4
 show4 SP = showSP4
-{-# INLINE show4 #-}
+{-# INLINABLE show4 #-}
+{-# SPECIALIZE show4 :: PaddingModifier -> Int -> PartS #-}
+{-# SPECIALIZE show4 :: PaddingModifier -> Integer -> PartS #-}
 
 showNP :: (Show a, Integral a) => a -> PartS
 showNP n next = Builder (show n) : next
-{-# INLINE showNP #-}
+{-# INLINABLE showNP #-}
+{-# SPECIALIZE showNP :: Int -> PartS #-}
+{-# SPECIALIZE showNP :: Integer -> PartS #-}
 
 showZP2 :: (Show a, Integral a) => a -> PartS
 showZP2 n next = if n < 10 then Builder "0" : Builder (show n) : next

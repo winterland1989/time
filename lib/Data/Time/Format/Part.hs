@@ -217,25 +217,35 @@ formatTimeParts l parts t = foldr go "" (buildTimeParts l t parts)
     go (String s) acc = s ++ acc
     go _        acc = acc
 
+instance FormatTime UniversalTime String where
+    buildTimeParts l ut = buildTimeParts l (ut1ToLocalTime 0 ut)
+
 instance FormatTime UTCTime String where
     buildTimeParts l ut = buildTimeParts l (utcToZonedTime utc ut)
 
 instance FormatTime ZonedTime String where
     buildTimeParts l zt@(ZonedTime lt tz) =
-        buildTimeParts l lt . buildTimeParts l tz . foldr go []
+        buildTimeParts l lt . foldr go []
       where
         go part next = case part of
             PosixSeconds -> showNP posixS next
-            p -> p : next
+            TZ        -> Char sign : showSP2 h (showSP2 m next)
+            TZColon   -> Char sign : showSP2 h (Char ':' : showSP2 m next)
+            TZName c  -> Builder (modifyCase c name) : next
+            p         -> p : next
+        t = timeZoneMinutes tz
+        name = timeZoneName tz
+        sign = if t < 0 then '-' else '+'
+        (h, m) =  abs t `quotRem` 60
         posixS = floor (utcTimeToPOSIXSeconds (zonedTimeToUTC zt)) :: Integer
 
 instance FormatTime TimeZone String where
-    buildTimeParts l tz = foldr go []
+    buildTimeParts _ tz = foldr go []
       where
         go part next = case part of
             TZ        -> Char sign : showSP2 h (showSP2 m next)
             TZColon   -> Char sign : showSP2 h (Char ':' : showSP2 m next)
-            TZName c  -> Builder name : next
+            TZName c  -> Builder (modifyCase c name) : next
             p         -> p : next
         t = timeZoneMinutes tz
         name = timeZoneName tz

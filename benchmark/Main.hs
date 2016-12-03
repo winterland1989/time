@@ -40,12 +40,11 @@ main = do
         olt = O.zonedTimeToLocalTime ozt
         otod = O.localTimeOfDay olt
 
+    print $ (formatTimeParts defaultTimeLocale parts) ct
     print $ (formatTimeParts defaultTimeLocale parts) zt
-    print $ (formatTimeParts defaultTimeLocale parts) lt
-    print $ (formatTimeParts defaultTimeLocale parts) tod
+    print $ (O.formatTime O.defaultTimeLocale oparts) oct
     print $ (O.formatTime O.defaultTimeLocale oparts) ozt
-    print $ (O.formatTime O.defaultTimeLocale oparts) olt
-    print $ (O.formatTime O.defaultTimeLocale oparts) otod
+
     defaultMain
         [ bgroup "new"
             [ bench "getCurrentTime" $ nfIO getCurrentTime

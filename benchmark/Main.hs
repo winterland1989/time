@@ -35,22 +35,36 @@ main = do
         lt = zonedTimeToLocalTime zt
         tod = localTimeOfDay lt
 
-    print $ (formatTimePart defaultTimeLocale parts) lt
-    print $ (formatTimePart defaultTimeLocale parts) tod
+    ozt <- O.getZonedTime
+    let oparts = O.rfc822DateFormat
+        olt = O.zonedTimeToLocalTime ozt
+        otod = O.localTimeOfDay olt
+
+    print $ (formatTimeParts defaultTimeLocale parts) zt
+    print $ (formatTimeParts defaultTimeLocale parts) lt
+    print $ (formatTimeParts defaultTimeLocale parts) tod
+    print $ (O.formatTime O.defaultTimeLocale oparts) ozt
+    print $ (O.formatTime O.defaultTimeLocale oparts) olt
+    print $ (O.formatTime O.defaultTimeLocale oparts) otod
     defaultMain
         [ bgroup "new"
             [ bench "getCurrentTime" $ nfIO getCurrentTime
-            , bench "formatParts@LocalTime" $ nf (formatTimePart defaultTimeLocale parts) lt
-            , bench "formatParts@TimeOfDay" $ nf (formatTimePart defaultTimeLocale parts) tod
+            , bench "formatParts@ZonedTime" $ nf (formatTimeParts defaultTimeLocale parts) zt
+            , bench "formatParts@LocalTime" $ nf (formatTimeParts defaultTimeLocale parts) lt
+            , bench "formatParts@TimeOfDay" $ nf (formatTimeParts defaultTimeLocale parts) tod
             , bench "getPOSIXTime" $ nfIO getPOSIXTime
             , bench "getZonedTime" $ nfIO getZonedTime
             ]
         ,
           bgroup "old"
             [ bench "getCurrentTime" $ nfIO O.getCurrentTime
+            , bench "utcToZonedTime" $ nf (O.utcToZonedTime O.utc) oct
+            , bench "formatTime@UTCTime" $ nf (O.formatTime O.defaultTimeLocale oparts) oct
+            , bench "formatTime@ZonedTime" $ nf (O.formatTime O.defaultTimeLocale oparts) ozt
+            , bench "formatTime@LocalTime" $ nf (O.formatTime O.defaultTimeLocale oparts) olt
+            , bench "formatTime@TimeOfDay" $ nf (O.formatTime O.defaultTimeLocale oparts) otod
             , bench "getPOSIXTime" $ nfIO O.getPOSIXTime
             , bench "getZonedTime" $ nfIO O.getZonedTime
-            , bench "formatTime" $ nf (O.formatTime O.defaultTimeLocale "%H:%M:%S%Q") oct
             ]
         ]
 

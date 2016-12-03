@@ -21,12 +21,12 @@ import Data.Data
 -- | Time of day as represented in hour, minute and second (with picoseconds), typically used to express local time of day.
 data TimeOfDay = TimeOfDay {
     -- | range 0 - 23
-    todHour    :: Int,
+    todHour    :: {-# UNPACK #-} !Int,
     -- | range 0 - 59
-    todMin     :: Int,
+    todMin     :: {-# UNPACK #-} !Int,
     -- | Note that 0 <= todSec < 61, accomodating leap seconds.
     -- Any local minute may have a leap second, since leap seconds happen in all zones simultaneously
-    todSec     :: Pico
+    todSec     :: !Pico
 } deriving (Eq, Ord ,Data, Typeable)
 
 instance NFData TimeOfDay where

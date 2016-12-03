@@ -12,6 +12,7 @@ import Data.Fixed
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Calendar.OrdinalDate (toOrdinalDate, mondayStartWeek, sundayStartWeek)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 
 -- | The @no padding@, @space padded@ and @zero padded@ modifier.
 --
@@ -37,30 +38,32 @@ data Part a
     | WeekOfYear' PaddingModifier  -- ^ 'sundayStartWeek' of year (0 - 53), padded to 2 chars
     | WDWeekOfYear PaddingModifier -- ^ week of year for Week Date format, padded to 2 chars.
     | Month PaddingModifier        -- ^ month of year (1 - 12).
-    | MonthAbbr CaseModifier      -- ^ name of the month short ('snd' from 'months' locale, Jan - Dec).
+    | MonthAbbr CaseModifier       -- ^ name of the month short ('snd' from 'months' locale, Jan - Dec).
     | MonthFull CaseModifier       -- ^ name of the month long ('snd' from 'months' locale, January - December).
-    | DayOfMonth PaddingModifier
-    | DayOfYear PaddingModifier
-    | DayOfWeek
-    | WDDayOfWeek
-    | WeekDayAbbr CaseModifier
-    | WeekDayFull CaseModifier
-    | DayHalf CaseModifier
-    | Hour PaddingModifier
-    | HourHalf PaddingModifier
-    | Minute PaddingModifier
-    | Second PaddingModifier
-    | MilliSecond
-    | MicroSecond
-    | NanoSecond
-    | PicoSecond
-    | SecondFrac                   -- ^ decimal point and fraction of second, up to 12 decimals without trailing zeros
-    | PosixSeconds
-    | TZ
-    | TZColon
-    | TZName CaseModifier
-    | Char Char
-    | Part a
+    | DayOfMonth PaddingModifier   -- ^ day of month, (1 - 32).
+    | DayOfYear PaddingModifier    -- ^ day of year, (1 - 366).
+    | DayOfWeek                    -- ^ day of week, 0 (= Sunday) - 6 (= Saturday).
+    | WDDayOfWeek                  -- ^ day of week for Week Date format, (1 - 7).
+    | WeekDayAbbr CaseModifier     -- ^ weekday name abbreviated ('snd' from 'wDays' locale, Sun - Sat).
+    | WeekDayFull CaseModifier     -- ^ weekday name full ('fst' from 'wDays' locale, Sunday - Saturday).
+    | DayHalf CaseModifier         -- ^ day-half from ('amPm' locale), (AM, PM).
+    | Hour PaddingModifier         -- ^ hour of day (0 to 23).
+    | HourHalf PaddingModifier     -- ^ hour of day-half (0 to 12).
+    | Minute PaddingModifier       -- ^ minute (0 to 59).
+    | Second PaddingModifier       -- ^ second (0 to 59).
+    | MilliSecond                  -- ^ millisecond (000 to 999).
+    | MicroSecond                  -- ^ microsecond (000000 to 999999).
+    | NanoSecond                   -- ^ nanosecond (000000000 to 999999999).
+    | PicoSecond                   -- ^ picosecond (000000000000 to 999999999999).
+    | SecondFrac                   -- ^ decimal point and fraction of second up to 12 decimals without trailing zeros.
+    | PosixSeconds                 -- ^ number of seconds since 1 jan 1970. unix epoch.
+    | TZ                           -- ^ timeoffset offset (+0200).
+    | TZColon                      -- ^ timeoffset offset with colon (+02:00)
+    | TZName CaseModifier          -- ^ timezone name (e.g. GMT, PST).
+    | Char Char                    -- ^ a verbatim 'Char'.
+    | String String                -- ^ a verbatim 'String'.
+    | Builder a                    -- ^ used for internal building, it's recommanded to use String above instead of
+                                   -- using a fixed builder type.
   deriving (Show, Eq)
 
 mkParts :: TimeLocale -> String -> [Part a]
@@ -200,46 +203,72 @@ mkParts _ [] = []
 
 class FormatTime t builder where
     -- | Each @t@ should replace the 'Part' s it knows with a 'Part' 'builder',
-    -- 'Char' can be either left as it is or be processed depend
-    -- on different implementation.
+    -- 'Data.Time.Format.Part.Char' and 'Data.Time.Format.Part.String' can be either
+    -- left as it is or be processed depend on different implementation.
     --
-    buildTimePart ::  TimeLocale -> t -> [Part builder] -> [Part builder]
+    buildTimeParts ::  TimeLocale -> t -> [Part builder] -> [Part builder]
 
-formatTimePart :: (FormatTime t String) => TimeLocale -> [Part String] -> t -> String
-formatTimePart l parts t = foldr go "" (buildTimePart l t parts)
+formatTimeParts :: (FormatTime t String) => TimeLocale -> [Part String] -> t -> String
+formatTimeParts l parts t = foldr go "" (buildTimeParts l t parts)
   where
-    go (Part f) acc = f ++ acc
     go (Char c) acc = c:acc
+    go (Builder s) acc = s ++ acc
+    go (String s) acc = s ++ acc
     go _        acc = acc
 
+instance FormatTime ZonedTime String where
+    buildTimeParts l zt@(ZonedTime lt tz) parts =
+        let parts' = buildTimeParts l lt (buildTimeParts l tz parts)
+        in buildPosixSeconds parts'
+      where
+        buildPosixSeconds [] = []
+        buildPosixSeconds (part:parts'') = case part of
+            PosixSeconds -> showNP posixS (buildPosixSeconds parts'')
+            p -> p : buildPosixSeconds parts''
+        posixS = floor (utcTimeToPOSIXSeconds (zonedTimeToUTC zt)) :: Integer
+
+instance FormatTime TimeZone String where
+    buildTimeParts _ _ [] = []
+    buildTimeParts l tz (part:parts) = case part of
+        TZ        -> Char sign : showSP2 h (showSP2 m next)
+        TZColon   -> Char sign : showSP2 h (Char ':' : showSP2 m next)
+        TZName c  -> Builder name : next
+        p         -> p : next
+      where
+        next = buildTimeParts l tz parts
+        t = timeZoneMinutes tz
+        name = timeZoneName tz
+        sign = if t < 0 then '-' else '+'
+        (h, m) =  abs t `divMod` 60
+
 instance FormatTime LocalTime String where
-    buildTimePart l (LocalTime day tod) =
-        buildTimePart l day . buildTimePart l tod
+    buildTimeParts l (LocalTime day tod) =
+        buildTimeParts l day . buildTimeParts l tod
 
 instance FormatTime Day String where
-    buildTimePart _ _ [] = []
-    buildTimePart l day (part:parts) = case part of
-        Century p      -> show2 p century                 next
-        WDCentury p    -> show2 p century_wd              next
-        Year2 p        -> show2 p yy                      next
-        WDYear2 p      -> show2 p yy_wd                   next
-        Year4 p        -> show4 p yyyy                    next
-        WDYear4 p      -> show4 p yyyy_wd                 next
-        WeekOfYear p   -> show2 p ww                      next
-        WeekOfYear' p  -> show2 p ww'                     next
-        WDWeekOfYear p -> show2 p ww_wd                   next
-        Month p        -> show2 p mm                      next
-        MonthAbbr c    -> Part (modifyCase c monthAbbr) : next
-        MonthFull c    -> Part (modifyCase c monthFull) : next
-        DayOfMonth p   -> show2 p md                      next
-        DayOfYear p    -> show3 p yd                      next
-        DayOfWeek      -> showNP wd                       next
-        WDDayOfWeek    -> showNP wd_wd                    next
-        WeekDayAbbr c  -> Part (modifyCase c wDayAbbr) :  next
-        WeekDayFull c  -> Part (modifyCase c wDayFull) :  next
-        p              -> p :                             next
+    buildTimeParts _ _ [] = []
+    buildTimeParts l day (part:parts) = case part of
+        Century p      -> show2 p century                    next
+        WDCentury p    -> show2 p century_wd                 next
+        Year2 p        -> show2 p yy                         next
+        WDYear2 p      -> show2 p yy_wd                      next
+        Year4 p        -> show4 p yyyy                       next
+        WDYear4 p      -> show4 p yyyy_wd                    next
+        WeekOfYear p   -> show2 p ww                         next
+        WeekOfYear' p  -> show2 p ww'                        next
+        WDWeekOfYear p -> show2 p ww_wd                      next
+        Month p        -> show2 p mm                         next
+        MonthAbbr c    -> Builder (modifyCase c monthAbbr) : next
+        MonthFull c    -> Builder (modifyCase c monthFull) : next
+        DayOfMonth p   -> show2 p md                         next
+        DayOfYear p    -> show3 p yd                         next
+        DayOfWeek      -> showNP wd'                         next
+        WDDayOfWeek    -> showNP wd_wd                       next
+        WeekDayAbbr c  -> Builder (modifyCase c wDayAbbr) :  next
+        WeekDayFull c  -> Builder (modifyCase c wDayFull) :  next
+        p              -> p :                                next
       where
-        next = buildTimePart l day parts
+        next = buildTimeParts l day parts
         (yyyy, mm, md) = toGregorian day
         (century, yy) = yyyy `divMod` 100
         (_, yd) = toOrdinalDate day
@@ -247,27 +276,27 @@ instance FormatTime Day String where
         monthFull = fst (months l !! (mm - 1))
         (yyyy_wd, ww_wd, wd_wd) = toWeekDate day
         (century_wd, yy_wd) = yyyy_wd `divMod` 100
-        (ww, wd) = mondayStartWeek day
-        (ww', wd') = sundayStartWeek day
-        wDayAbbr = snd (wDays l !! (wd - 1))
-        wDayFull = fst (wDays l !! (wd - 1))
+        (ww, _) = mondayStartWeek day   -- 1 - 7
+        (ww', wd') = sundayStartWeek day -- 0 - 6
+        wDayAbbr = snd (wDays l !! wd')
+        wDayFull = fst (wDays l !! wd')
 
 instance FormatTime TimeOfDay String where
-    buildTimePart _ _ [] = []
-    buildTimePart l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
-        Hour p      -> show2 p hour                    next
-        HourHalf p  -> show2 p hourHalf                next
-        Minute p    -> show2 p minute                  next
-        Second p    -> show2 p isec                    next
-        MilliSecond -> showZP3 (fsec `div` 1000000000) next
-        MicroSecond -> showZP6 (fsec `div` 1000000)    next
-        NanoSecond  -> showZP9 (fsec`div` 1000)        next
-        PicoSecond  -> showZP12 fsec                   next
-        SecondFrac  -> showZP12NT fsec                 next
-        DayHalf c   -> Part (modifyCase c dayHalf) :   next
-        p           -> p :                             next
+    buildTimeParts _ _ [] = []
+    buildTimeParts l t@(TimeOfDay hour minute (MkFixed ps)) (part:parts) = case part of
+        Hour p      -> show2 p hour                     next
+        HourHalf p  -> show2 p hourHalf                 next
+        Minute p    -> show2 p minute                   next
+        Second p    -> show2 p isec                     next
+        MilliSecond -> showZP3 (fsec `div` 1000000000)  next
+        MicroSecond -> showZP6 (fsec `div` 1000000)     next
+        NanoSecond  -> showZP9 (fsec`div` 1000)         next
+        PicoSecond  -> showZP12 fsec                    next
+        SecondFrac  -> showZP12NT fsec                  next
+        DayHalf c   -> Builder (modifyCase c dayHalf) : next
+        p           -> p :                              next
       where
-        next = buildTimePart l t parts
+        next = buildTimeParts l t parts
         hourHalf = mod (hour - 1) 12 + 1
         (isec, fsec) = fromIntegral ps `divMod` (1000000000000 :: Int64)
         dayHalf = (if hour < 12 then fst else snd) (amPm l)
@@ -301,102 +330,102 @@ show4 SP = showSP4
 {-# INLINE show4 #-}
 
 showNP :: (Show a, Integral a) => a -> PartS
-showNP n next = Part (show n) : next
+showNP n next = Builder (show n) : next
 {-# INLINE showNP #-}
 
 showZP2 :: (Show a, Integral a) => a -> PartS
-showZP2 n next = if n < 10 then Part "0" : Part (show n) : next
-                           else Part (show n) : next
+showZP2 n next = if n < 10 then Builder "0" : Builder (show n) : next
+                           else Builder (show n) : next
 {-# INLINE showZP2 #-}
 
 showSP2 :: (Show a, Integral a) => a -> PartS
-showSP2 n next = if n < 10 then Part " " : Part (show n) : next
-                           else Part (show n) : next
+showSP2 n next = if n < 10 then Builder " " : Builder (show n) : next
+                           else Builder (show n) : next
 {-# INLINE showSP2 #-}
 
 showZP3 :: (Show a, Integral a) => a -> PartS
 showZP3 n next
-    | n < 10 = Part "00" : Part (show n) : next
-    | n < 100 = Part "0" : Part (show n) : next
-    | otherwise = Part (show n) : next
+    | n < 10 = Builder "00" : Builder (show n) : next
+    | n < 100 = Builder "0" : Builder (show n) : next
+    | otherwise = Builder (show n) : next
 {-# INLINE showZP3 #-}
 
 showSP3 :: (Show a, Integral a) => a -> PartS
 showSP3 n next
-    | n < 10 = Part "  " : Part (show n) : next
-    | n < 100 = Part " " : Part (show n) : next
-    | otherwise = Part (show n) : next
+    | n < 10 = Builder "  " : Builder (show n) : next
+    | n < 100 = Builder " " : Builder (show n) : next
+    | otherwise = Builder (show n) : next
 {-# INLINE showSP3 #-}
 
 showZP4 :: (Show a, Integral a) => a -> PartS
 showZP4 n next
-    | n < 10 = Part "000" : Part (show n) : next
-    | n < 100 = Part "00" : Part (show n) : next
-    | n < 1000 = Part "0" : Part (show n) : next
-    | otherwise = Part (show n) : next
+    | n < 10 = Builder "000" : Builder (show n) : next
+    | n < 100 = Builder "00" : Builder (show n) : next
+    | n < 1000 = Builder "0" : Builder (show n) : next
+    | otherwise = Builder (show n) : next
 {-# INLINE showZP4 #-}
 
 showSP4 :: (Show a, Integral a) => a -> PartS
 showSP4 n next
-    | n < 10 = Part "   " : Part (show n) : next
-    | n < 100 = Part "  " : Part (show n) : next
-    | n < 1000 = Part " " : Part (show n) : next
-    | otherwise = Part (show n) : next
+    | n < 10 = Builder "   " : Builder (show n) : next
+    | n < 100 = Builder "  " : Builder (show n) : next
+    | n < 1000 = Builder " " : Builder (show n) : next
+    | otherwise = Builder (show n) : next
 {-# INLINE showSP4 #-}
 
 showZP6 :: (Show a, Integral a) => a -> PartS
 showZP6 n next
-    | n < 10 = Part "00000" : Part (show n) : next
-    | n < 100 = Part "0000" : Part (show n) : next
-    | n < 1000 = Part "000" : Part (show n) : next
-    | n < 10000 = Part "00" : Part (show n) : next
-    | n < 100000 = Part "0" : Part (show n) : next
-    | otherwise = Part (show n) : next
+    | n < 10 = Builder "00000" : Builder (show n) : next
+    | n < 100 = Builder "0000" : Builder (show n) : next
+    | n < 1000 = Builder "000" : Builder (show n) : next
+    | n < 10000 = Builder "00" : Builder (show n) : next
+    | n < 100000 = Builder "0" : Builder (show n) : next
+    | otherwise = Builder (show n) : next
 {-# INLINE showZP6 #-}
 
 showZP9 :: (Show a, Integral a) => a -> PartS
 showZP9 n next
-    | n < 10 = Part "00000000" : Part (show n) : next
-    | n < 100 = Part "0000000" : Part (show n) : next
-    | n < 1000 = Part "000000" : Part (show n) : next
-    | n < 10000 = Part "00000" : Part (show n) : next
-    | n < 100000 = Part "0000" : Part (show n) : next
-    | n < 1000000 = Part "000" : Part (show n) : next
-    | n < 10000000 = Part "00" : Part (show n) : next
-    | n < 100000000 = Part "0" : Part (show n) : next
-    | otherwise = Part (show n) : next
+    | n < 10 = Builder "00000000" : Builder (show n) : next
+    | n < 100 = Builder "0000000" : Builder (show n) : next
+    | n < 1000 = Builder "000000" : Builder (show n) : next
+    | n < 10000 = Builder "00000" : Builder (show n) : next
+    | n < 100000 = Builder "0000" : Builder (show n) : next
+    | n < 1000000 = Builder "000" : Builder (show n) : next
+    | n < 10000000 = Builder "00" : Builder (show n) : next
+    | n < 100000000 = Builder "0" : Builder (show n) : next
+    | otherwise = Builder (show n) : next
 {-# INLINE showZP9 #-}
 
 showZP12 :: (Show a, Integral a) => a -> PartS
 showZP12 n next
-    | n < 10 = Part "00000000000" : Part (show n) : next
-    | n < 100 = Part "0000000000" : Part (show n) : next
-    | n < 1000 = Part "000000000" : Part (show n) : next
-    | n < 10000 = Part "00000000" : Part (show n) : next
-    | n < 100000 = Part "0000000" : Part (show n) : next
-    | n < 1000000 = Part "000000" : Part (show n) : next
-    | n < 10000000 = Part "00000" : Part (show n) : next
-    | n < 100000000 = Part "0000" : Part (show n) : next
-    | n < 1000000000 = Part "000" : Part (show n) : next
-    | n < 10000000000 = Part "00" : Part (show n) : next
-    | n < 100000000000 = Part "0" : Part (show n) : next
-    | otherwise = Part (show n) : next
+    | n < 10 = Builder "00000000000" : Builder (show n) : next
+    | n < 100 = Builder "0000000000" : Builder (show n) : next
+    | n < 1000 = Builder "000000000" : Builder (show n) : next
+    | n < 10000 = Builder "00000000" : Builder (show n) : next
+    | n < 100000 = Builder "0000000" : Builder (show n) : next
+    | n < 1000000 = Builder "000000" : Builder (show n) : next
+    | n < 10000000 = Builder "00000" : Builder (show n) : next
+    | n < 100000000 = Builder "0000" : Builder (show n) : next
+    | n < 1000000000 = Builder "000" : Builder (show n) : next
+    | n < 10000000000 = Builder "00" : Builder (show n) : next
+    | n < 100000000000 = Builder "0" : Builder (show n) : next
+    | otherwise = Builder (show n) : next
 {-# INLINE showZP12 #-}
 
 showZP12NT :: (Show a, Integral a) => a -> PartS
 showZP12NT n next
-    | n < 10 = Part "00000000000" : Part (cut (show n)) : next
-    | n < 100 = Part "0000000000" : Part (cut (show n)) : next
-    | n < 1000 = Part "000000000" : Part (cut (show n)) : next
-    | n < 10000 = Part "00000000" : Part (cut (show n)) : next
-    | n < 100000 = Part "0000000" : Part (cut (show n)) : next
-    | n < 1000000 = Part "000000" : Part (cut (show n)) : next
-    | n < 10000000 = Part "00000" : Part (cut (show n)) : next
-    | n < 100000000 = Part "0000" : Part (cut (show n)) : next
-    | n < 1000000000 = Part "000" : Part (cut (show n)) : next
-    | n < 10000000000 = Part "00" : Part (cut (show n)) : next
-    | n < 100000000000 = Part "0" : Part (cut (show n)) : next
-    | otherwise = Part (cut (show n)) : next
+    | n < 10 = Builder "00000000000" : Builder (cut (show n)) : next
+    | n < 100 = Builder "0000000000" : Builder (cut (show n)) : next
+    | n < 1000 = Builder "000000000" : Builder (cut (show n)) : next
+    | n < 10000 = Builder "00000000" : Builder (cut (show n)) : next
+    | n < 100000 = Builder "0000000" : Builder (cut (show n)) : next
+    | n < 1000000 = Builder "000000" : Builder (cut (show n)) : next
+    | n < 10000000 = Builder "00000" : Builder (cut (show n)) : next
+    | n < 100000000 = Builder "0000" : Builder (cut (show n)) : next
+    | n < 1000000000 = Builder "000" : Builder (cut (show n)) : next
+    | n < 10000000000 = Builder "00" : Builder (cut (show n)) : next
+    | n < 100000000000 = Builder "0" : Builder (cut (show n)) : next
+    | otherwise = Builder (cut (show n)) : next
   where
     cut = takeWhile (/= '0')
 {-# INLINE showZP12NT #-}

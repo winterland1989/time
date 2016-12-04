@@ -210,7 +210,6 @@ class FormatTime t builder where
 formatTimeParts :: (FormatTime t String) => TimeLocale -> [Part] -> t -> String
 formatTimeParts l parts t = concatMap (buildTimeParts l t (const "")) parts
 
-{-
 instance FormatTime UniversalTime String where
     buildTimeParts l ut = buildTimeParts l (ut1ToLocalTime 0 ut)
 
@@ -218,34 +217,28 @@ instance FormatTime UTCTime String where
     buildTimeParts l ut = buildTimeParts l (utcToZonedTime utc ut)
 
 instance FormatTime ZonedTime String where
-    buildTimeParts l zt@(ZonedTime lt tz) =
-        buildTimeParts l lt . foldr go []
+    buildTimeParts l zt@(ZonedTime lt tz) next part =
+        case part of
+            PosixSeconds -> show posixS
+            String s     -> s
+            Char c       -> [c]
+            p            -> next' p
       where
-        go part next = case part of
-            PosixSeconds -> showNP posixS next
-            TZ        -> Char sign : showSP2 h (showSP2 m next)
-            TZColon   -> Char sign : showSP2 h (Char ':' : showSP2 m next)
-            TZName c  -> Builder (modifyCase c name) : next
-            p         -> p : next
-        t = timeZoneMinutes tz
-        name = timeZoneName tz
-        sign = if t < 0 then '-' else '+'
-        (h, m) =  abs t `quotRem` 60
+        next' = buildTimeParts l lt (buildTimeParts l tz next)
         posixS = floor (utcTimeToPOSIXSeconds (zonedTimeToUTC zt)) :: Integer
 
 instance FormatTime TimeZone String where
-    buildTimeParts _ tz = foldr go []
+    buildTimeParts _ (TimeZone t _ name) next part =
+        case part of
+            TZ        -> (sign : showZP2 h) ++ showZP2 m
+            TZColon   -> (sign : showZP2 h) ++ (':' : showZP2 m)
+            TZName c  -> modifyCase c name
+            String s    -> s
+            Char c      -> [c]
+            p         -> next p
       where
-        go part next = case part of
-            TZ        -> Char sign : showSP2 h (showSP2 m next)
-            TZColon   -> Char sign : showSP2 h (Char ':' : showSP2 m next)
-            TZName c  -> Builder (modifyCase c name) : next
-            p         -> p : next
-        t = timeZoneMinutes tz
-        name = timeZoneName tz
         sign = if t < 0 then '-' else '+'
         (h, m) =  abs t `quotRem` 60
--}
 
 instance FormatTime LocalTime String where
     buildTimeParts l (LocalTime day tod) next =

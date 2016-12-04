@@ -40,8 +40,8 @@ main = do
         olt = O.zonedTimeToLocalTime ozt
         otod = O.localTimeOfDay olt
 
-    -- print $ (formatTimeParts defaultTimeLocale parts) ct
-    -- print $ (formatTimeParts defaultTimeLocale parts) zt
+    print $ (formatTimeParts defaultTimeLocale parts) ct
+    print $ (formatTimeParts defaultTimeLocale parts) zt
     print $ (formatTimeParts defaultTimeLocale parts) lt
     print $ (O.formatTime O.defaultTimeLocale oparts) oct
     print $ (O.formatTime O.defaultTimeLocale oparts) ozt
@@ -49,8 +49,8 @@ main = do
     defaultMain
         [ bgroup "new"
             [ bench "getCurrentTime" $ nfIO getCurrentTime
-           --  , bench "formatParts@UTCTime" $ nf (formatTimeParts defaultTimeLocale parts) ct
-           --  , bench "formatParts@ZonedTime" $ nf (formatTimeParts defaultTimeLocale parts) zt
+            , bench "formatParts@UTCTime" $ nf (formatTimeParts defaultTimeLocale parts) ct
+            , bench "formatParts@ZonedTime" $ nf (formatTimeParts defaultTimeLocale parts) zt
             , bench "formatParts@LocalTime" $ nf (formatTimeParts defaultTimeLocale parts) lt
             , bench "formatParts@TimeOfDay" $ nf (formatTimeParts defaultTimeLocale parts) tod
             , bench "getPOSIXTime" $ nfIO getPOSIXTime

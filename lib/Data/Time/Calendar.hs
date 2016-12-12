@@ -6,4 +6,3 @@ module Data.Time.Calendar
 
 import Data.Time.Calendar.Days
 import Data.Time.Calendar.Gregorian
-import Data.Time.Format()

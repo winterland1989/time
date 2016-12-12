@@ -1,5 +1,5 @@
 {-# OPTIONS -fno-warn-type-defaults -fno-warn-unused-binds -fno-warn-orphans #-}
-{-# LANGUAGE FlexibleInstances, ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances, ExistentialQuantification, FlexibleContexts #-}
 
 module Test.TestParseTime where
 
@@ -235,7 +235,7 @@ militaryTimeZoneTests = testGroup "military time zones" (fmap (testParseTimeZone
 parse :: ParseTime t => Bool -> String -> String -> Maybe t
 parse sp f t = parseTimeM sp defaultTimeLocale f t
 
-format :: (FormatTime t) => String -> t -> String
+format :: (FormatTime t String) => String -> t -> String
 format f t = formatTime defaultTimeLocale f t
 
 instance Arbitrary Day where
@@ -312,7 +312,7 @@ compareParse expected fmt text = compareResult' (", parsing " ++ (show text)) (J
 -- * tests for dbugging failing cases
 --
 
-test_parse_format :: (FormatTime t,ParseTime t,Show t) => String -> t -> (String,String,Maybe t)
+test_parse_format :: (FormatTime t String,ParseTime t,Show t) => String -> t -> (String,String,Maybe t)
 test_parse_format f t = let s = format f t in (show t, s, parse False f s `asTypeOf` Just t)
 
 --
@@ -363,35 +363,35 @@ prop_named :: (Arbitrary t, Show t, Testable a)
            => String -> (FormatString s -> t -> a) -> String -> FormatString s -> NamedProperty
 prop_named n prop typeName f = (n ++ " " ++ typeName ++ " " ++ show f, property (prop f))
 
-prop_parse_format :: (Eq t, FormatTime t, ParseTime t, Show t) => FormatString t -> t -> Result
+prop_parse_format :: (Eq t, FormatTime t String, ParseTime t, Show t) => FormatString t -> t -> Result
 prop_parse_format (FormatString f) t = compareParse t f (format f t)
 
-prop_parse_format_named :: (Arbitrary t, Eq t, Show t, FormatTime t, ParseTime t)
+prop_parse_format_named :: (Arbitrary t, Eq t, Show t, FormatTime t String, ParseTime t)
                            => String -> FormatString t -> NamedProperty
 prop_parse_format_named = prop_named "prop_parse_format" prop_parse_format
 
 -- Verify case-insensitivity with upper case.
-prop_parse_format_upper :: (Eq t, FormatTime t, ParseTime t, Show t) => FormatString t -> t -> Result
+prop_parse_format_upper :: (Eq t, FormatTime t String, ParseTime t, Show t) => FormatString t -> t -> Result
 prop_parse_format_upper (FormatString f) t = compareParse t f (map toUpper $ format f t)
 
-prop_parse_format_upper_named :: (Arbitrary t, Eq t, Show t, FormatTime t, ParseTime t)
+prop_parse_format_upper_named :: (Arbitrary t, Eq t, Show t, FormatTime t String, ParseTime t)
                               => String -> FormatString t -> NamedProperty
 prop_parse_format_upper_named = prop_named "prop_parse_format_upper" prop_parse_format_upper
 
 -- Verify case-insensitivity with lower case.
-prop_parse_format_lower :: (Eq t, FormatTime t, ParseTime t, Show t) => FormatString t -> t -> Result
+prop_parse_format_lower :: (Eq t, FormatTime t String, ParseTime t, Show t) => FormatString t -> t -> Result
 prop_parse_format_lower (FormatString f) t = compareParse t f (map toLower $ format f t)
 
-prop_parse_format_lower_named :: (Arbitrary t, Eq t, Show t, FormatTime t, ParseTime t)
+prop_parse_format_lower_named :: (Arbitrary t, Eq t, Show t, FormatTime t String, ParseTime t)
                               => String -> FormatString t -> NamedProperty
 prop_parse_format_lower_named = prop_named "prop_parse_format_lower" prop_parse_format_lower
 
-prop_format_parse_format :: (FormatTime t, ParseTime t, Show t) => FormatString t -> t -> Result
+prop_format_parse_format :: (FormatTime t String, ParseTime t, Show t) => FormatString t -> t -> Result
 prop_format_parse_format (FormatString f) t = compareResult
     (Just (format f t))
     (fmap (format f) (parse False f (format f t) `asTypeOf` Just t))
 
-prop_format_parse_format_named :: (Arbitrary t, Show t, FormatTime t, ParseTime t)
+prop_format_parse_format_named :: (Arbitrary t, Show t, FormatTime t String, ParseTime t)
                                   => String -> FormatString t -> NamedProperty
 prop_format_parse_format_named = prop_named "prop_format_parse_format" prop_format_parse_format
 
